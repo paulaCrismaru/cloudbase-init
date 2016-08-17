@@ -23,20 +23,17 @@ LOG = oslo_logging.getLogger(__name__)
 class CreateUserPlugin(createuser.BaseCreateUserPlugin):
 
     @staticmethod
-    def _create_user_logon(user_name, password, osutils):
+    def _create_user_logon(user_name, password, password_expires, osutils):
         try:
             # Create a user profile in order for other plugins
             # to access the user home, etc
             token = osutils.create_user_logon_session(user_name,
                                                       password,
-                                                      True)
+                                                      password_expires)
             osutils.close_user_logon_session(token)
         except Exception:
             LOG.exception('Cannot create a user logon session for user: "%s"',
                           user_name)
 
-    def create_user(self, username, password, osutils):
-        osutils.create_user(username, password)
-
-    def post_create_user(self, user_name, password, osutils):
-        self._create_user_logon(user_name, password, osutils)
+    def post_create_user(self, user_name, password, password_expires, osutils):
+        self._create_user_logon(user_name, password, password_expires, osutils)

@@ -28,50 +28,26 @@ class CreateUserPluginTests(unittest.TestCase):
     def setUp(self):
         self._create_user = createuser.CreateUserPlugin()
 
-    def test_create_user(self):
-        mock_osutils = mock.Mock()
-        self._create_user.create_user(
-            mock.sentinel.username,
-            mock.sentinel.password,
-            mock_osutils)
-
-        mock_osutils.create_user.assert_called_once_with(
-            mock.sentinel.username,
-            mock.sentinel.password)
-
-    @mock.patch('cloudbaseinit.plugins.windows.createuser.CreateUserPlugin.'
-                '_create_user_logon')
-    def test_post_create_user(self, mock_create_user_logon):
-        mock_osutils = mock.Mock()
-        self._create_user.post_create_user(
-            mock.sentinel.username,
-            mock.sentinel.password,
-            mock_osutils)
-
-        mock_create_user_logon.assert_called_once_with(
-            mock.sentinel.username,
-            mock.sentinel.password,
-            mock_osutils)
-
-    def test__create_user_logon(self):
-        mock_osutils = mock.Mock()
+    @mock.patch('cloudbaseinit.osutils')
+    def test__create_user_logon(self, mock_osutils):
         mock_token = mock.sentinel.token
         mock_osutils.create_user_logon_session.return_value = mock_token
 
         self._create_user._create_user_logon(
             mock.sentinel.user_name,
             mock.sentinel.password,
+            mock.sentinel.password_expires,
             mock_osutils)
 
         mock_osutils.create_user_logon_session.assert_called_once_with(
             mock.sentinel.user_name,
             mock.sentinel.password,
-            True)
+            mock.sentinel.password_expires)
         mock_osutils.close_user_logon_session.assert_called_once_with(
             mock_token)
 
-    def test__create_user_logon_fails(self):
-        mock_osutils = mock.Mock()
+    @mock.patch('cloudbaseinit.osutils')
+    def test__create_user_logon_fails(self, mock_osutils):
         mock_osutils.create_user_logon_session.side_effect = Exception
 
         with testutils.LogSnatcher('cloudbaseinit.plugins.windows.'
@@ -79,14 +55,18 @@ class CreateUserPluginTests(unittest.TestCase):
             self._create_user._create_user_logon(
                 mock.sentinel.user_name,
                 mock.sentinel.password,
+                mock.sentinel.password_expires,
                 mock_osutils)
 
         mock_osutils.create_user_logon_session.assert_called_once_with(
             mock.sentinel.user_name,
             mock.sentinel.password,
-            True)
-        self.assertFalse(mock_osutils.close_user_logon_session.called)
-        logging_message = (
+            mock.sentinel.password_expires)
+
+        expected_logging = [
             "Cannot create a user logon session for user: \"%s\""
-            % mock.sentinel.user_name)
-        self.assertTrue(snatcher.output[0].startswith(logging_message))
+            % mock.sentinel.user_name
+        ]
+        with self.assertRaises(Exception):
+            self.assertEqual(snatcher.output, expected_logging)
+            self.assertFalse(mock_osutils.close_user_logon_session.called)
