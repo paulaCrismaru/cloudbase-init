@@ -255,6 +255,14 @@ class GlobalOptions(conf_base.Options):
                 help='Copies the userdata to the given file path. The path '
                      'can include environment variables that will be expanded,'
                      ' e.g. "%%SYSTEMDRIVE%%\\CloudbaseInit\\UserData.bin"'),
+            cfg.BoolOpt(
+                'metadata_report_provisioning_started', default=False,
+                help='Reports to the metadata service that provisioning has '
+                     'started'),
+            cfg.BoolOpt(
+                'metadata_report_provisioning_completed', default=False,
+                help='Reports to the metadata service that provisioning '
+                     'completed or failed'),
         ]
 
         self._cli_options = [
