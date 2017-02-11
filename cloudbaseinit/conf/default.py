@@ -279,6 +279,10 @@ class GlobalOptions(conf_base.Options):
                 'metadata_report_provisioning_completed', default=False,
                 help='Reports to the metadata service that provisioning '
                      'completed successfully or failed'),
+            cfg.StrOpt(
+                'instrumentation_class',
+                default=None,
+                help='Instrumentation class path'),
         ]
 
         self._cli_options = [

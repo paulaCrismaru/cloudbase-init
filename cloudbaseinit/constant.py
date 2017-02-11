@@ -43,3 +43,8 @@ LOGON_PASSWORD_CHANGE_OPTIONS = [CLEAR_TEXT_INJECTED_ONLY, NEVER_CHANGE,
 
 VOL_ACT_KMS = "KMS"
 VOL_ACT_AVMA = "AVMA"
+
+INSTRUMENT_REBOOT = "instrument_reboot"
+INSTRUMENT_PROVISIONING_STARTED = "instrument_provisioning_started"
+INSTRUMENT_PROVISIONING_COMPLETED = "instrument_provisioning_completed"
+INSTRUMENT_PROVISIONING_FAILED = "instrument_provisioning_failed"

@@ -97,19 +97,21 @@ class TestInitManager(unittest.TestCase):
         self.plugin.get_name.return_value = fake_name
         self.plugin.execute.return_value = (status, True)
         mock_get_plugin_status.return_value = status
+        mock_instrumentation = mock.MagicMock()
+        mock_instrumentation.instrument_call.return_value = status, None
 
-        response = self._init._exec_plugin(osutils=self.osutils,
-                                           service='fake service',
-                                           plugin=self.plugin,
-                                           instance_id='fake id',
-                                           shared_data='shared data')
+        response = self._init._exec_plugin(
+            osutils=self.osutils,
+            service='fake service',
+            plugin=self.plugin,
+            instrumentation=mock_instrumentation,
+            instance_id='fake id',
+            shared_data='shared data')
 
         mock_get_plugin_status.assert_called_once_with(self.osutils,
                                                        'fake id',
                                                        fake_name)
         if status is base.PLUGIN_EXECUTE_ON_NEXT_BOOT:
-            self.plugin.execute.assert_called_once_with('fake service',
-                                                        'shared data')
             mock_set_plugin_status.assert_called_once_with(self.osutils,
                                                            'fake id',
                                                            fake_name, status)
@@ -122,10 +124,13 @@ class TestInitManager(unittest.TestCase):
         mock_plugin.execute.side_effect = Exception
         expected_logging = ["Executing plugin 'fake name'",
                             "plugin 'fake name' failed with error ''"]
+        instrumentation = mock.MagicMock()
+        instrumentation.instrument_call.side_effect = Exception()
         with testutils.LogSnatcher('cloudbaseinit.init') as snatcher:
             self._init._exec_plugin(osutils=self.osutils,
                                     service='fake service',
                                     plugin=mock_plugin,
+                                    instrumentation=instrumentation,
                                     instance_id='fake id',
                                     shared_data='shared data')
         self.assertEqual(expected_logging, snatcher.output[:2])
@@ -194,15 +199,16 @@ class TestInitManager(unittest.TestCase):
         mock_check_plugin_os_requirements.return_value = True
         mock_exec_plugin.return_value = success, reboot
         mock_load_plugins.return_value = plugins
+        instrumentation = mock.sentinel.instrumentation
         requirements_calls = [mock.call(self.osutils, plugin)
                               for plugin in plugins]
         exec_plugin_calls = [mock.call(self.osutils, service, plugin,
-                                       instance_id, {})
+                                       instrumentation, instance_id, {})
                              for plugin in plugins]
 
         with testutils.LogSnatcher('cloudbaseinit.init') as snatcher:
             response = self._init._handle_plugins_stage(
-                self.osutils, service, instance_id, stage)
+                self.osutils, service, instrumentation, instance_id, stage)
         self.assertEqual(
             ["Executing plugins for stage '{}':".format(stage)],
             snatcher.output)
@@ -226,6 +232,7 @@ class TestInitManager(unittest.TestCase):
     def test_handle_plugins_stage_stage_fails(self):
         self._test_handle_plugins_stage(success=False)
 
+    @mock.patch('cloudbaseinit.instrumentation.factory.load_instrumentation')
     @mock.patch('cloudbaseinit.init.InitManager.'
                 '_reset_service_password_and_respawn')
     @mock.patch('cloudbaseinit.init.InitManager'
@@ -239,6 +246,7 @@ class TestInitManager(unittest.TestCase):
                              mock_get_os_utils, mock_load_plugins,
                              mock_get_version, mock_check_latest_version,
                              mock_handle_plugins_stage, mock_reset_service,
+                             mock_load_instrumentation,
                              expected_logging,
                              version, name, instance_id, reboot=True,
                              last_stage=False):
@@ -253,14 +261,16 @@ class TestInitManager(unittest.TestCase):
         fake_service.get_instance_id.return_value = instance_id
         mock_handle_plugins_stage.side_effect = [(True, False), (True, False),
                                                  (last_stage, True)]
+        instrumentation = mock.MagicMock()
+        mock_load_instrumentation.return_value = instrumentation
         stages = [
             base.PLUGIN_STAGE_PRE_NETWORKING,
             base.PLUGIN_STAGE_PRE_METADATA_DISCOVERY,
             base.PLUGIN_STAGE_MAIN]
-        stage_calls_list = [[self.osutils, None, None, stage]
+        stage_calls_list = [[self.osutils, None, instrumentation, None, stage]
                             for stage in stages]
         stage_calls_list[2][1] = fake_service
-        stage_calls_list[2][2] = instance_id
+        stage_calls_list[2][3] = instance_id
         stage_calls = [mock.call(*args) for args in stage_calls_list]
         with testutils.LogSnatcher('cloudbaseinit.init') as snatcher:
             self._init.configure_host()
@@ -268,8 +278,6 @@ class TestInitManager(unittest.TestCase):
         mock_check_latest_version.assert_called_once_with()
         if CONF.reset_service_password:
             mock_reset_service.assert_called_once_with(self.osutils)
-        if last_stage:
-            fake_service.provisioning_completed.assert_called_once_with()
 
         self.osutils.wait_for_boot_completion.assert_called_once_with()
         mock_get_metadata_service.assert_called_once_with()
@@ -277,9 +285,7 @@ class TestInitManager(unittest.TestCase):
         fake_service.get_instance_id.assert_called_once_with()
         fake_service.cleanup.assert_called_once_with()
         mock_handle_plugins_stage.assert_has_calls(stage_calls)
-        if reboot:
-            self.osutils.reboot.assert_called_once_with()
-        else:
+        if not reboot:
             self.assertFalse(self.osutils.reboot.called)
 
     def _test_configure_host_with_logging(self, extra_logging, reboot=True,
