@@ -283,6 +283,14 @@ class GlobalOptions(conf_base.Options):
                 'instrumentation_class',
                 default=None,
                 help='Instrumentation class path'),
+            cfg.StrOpt(
+                'configuration_pass',
+                default=None,
+                choices=[constant.CONFIGURATION_PASS_SPECIALIZE,
+                         constant.CONFIGURATION_PASS_SETUP_COMPLETE,
+                         constant.CONFIGURATION_PASS_SERVICE,
+                         constant.CONFIGURATION_PASS_ERROR_HANDLER],
+                help='The configuration pass name'),
         ]
 
         self._cli_options = [

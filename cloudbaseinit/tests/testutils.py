@@ -201,5 +201,6 @@ class CloudbaseInitTestBase(unittest.TestCase):
 class FakeWindowsError(Exception):
     """WindowsError is available on Windows only."""
 
-    def __init__(self, errno):
+    def __init__(self, errno=None, winerror=None):
         self.errno = errno
+        self.winerror = winerror
