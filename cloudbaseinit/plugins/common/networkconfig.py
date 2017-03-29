@@ -23,6 +23,8 @@ from cloudbaseinit.osutils import factory as osutils_factory
 from cloudbaseinit.plugins.common import base as plugin_base
 from cloudbaseinit.utils import network
 
+from cloudbaseinit.objects import base as base_object
+
 
 LOG = oslo_logging.getLogger(__name__)
 
@@ -64,34 +66,34 @@ def _preprocess_nics(network_details, network_adapters):
     # Check and update every NetworkDetails object.
     total = len(network_adapters)
     for nic in network_details:
-        if not isinstance(nic, service_base.NetworkDetails):
-            raise exception.CloudbaseInitException(
-                "invalid NetworkDetails object {!r}"
-                .format(type(nic))
-            )
-        # Check requirements.
-        final_status = True
-        for fields, status in NET_REQUIRE.items():
-            if not status:
-                continue    # skip 'not required' entries
-            if not isinstance(fields, tuple):
-                fields = (fields,)
-            final_status = any([getattr(nic, field) for field in fields])
-            if not final_status:
-                break
+        # if not isinstance(nic, service_base.NetworkDetails):
+        #     raise exception.CloudbaseInitException(
+        #         "invalid NetworkDetails object {!r}"
+        #         .format(type(nic))
+        #     )
+        # # Check requirements.
+        # final_status = True
+        # for fields, status in base.NetworkObject.fields:
+        #     if not status:
+        #         continue    # skip 'not required' entries
+        #     if not isinstance(fields, tuple):
+        #         fields = (fields,)
+        #     final_status = any([getattr(nic, field) for field in fields])
+        #     if not final_status:
+        #         break
         address, netmask = nic.address, nic.netmask
-        if final_status:
-            # Additional check for info version.
-            if not (address and netmask):
-                final_status = nic.address6 and nic.netmask6
-                if final_status:
-                    address = address or network.address6_to_4_truncate(
-                        nic.address6)
-                    netmask = netmask or network.netmask6_to_4_truncate(
-                        nic.netmask6)
-        if not final_status:
-            LOG.error("Incomplete NetworkDetails object %s", nic)
-            continue
+        # if final_status:
+        #     # Additional check for info version.
+        #     if not (address and netmask):
+        #         final_status = nic.address6 and nic.netmask6
+        #         if final_status:
+        #             address = address or network.address6_to_4_truncate(
+        #                 nic.address6)
+        #             netmask = netmask or network.netmask6_to_4_truncate(
+        #                 nic.netmask6)
+        # if not final_status:
+        #     LOG.error("Incomplete NetworkDetails object %s", nic)
+        #     continue
         # Complete hardware address if missing by selecting
         # the corresponding MAC in terms of naming, then ordering.
         if not nic.mac:
@@ -103,7 +105,7 @@ def _preprocess_nics(network_details, network_adapters):
             idx = _name2idx(nic.name)
             if not mac and idx < total:
                 mac = network_adapters[idx][1]
-            nic = service_base.NetworkDetails(
+            nic = base_object.NIC(
                 nic.name,
                 mac,
                 address,
