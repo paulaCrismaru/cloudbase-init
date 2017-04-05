@@ -49,6 +49,16 @@ NetworkDetails = collections.namedtuple(
 )
 
 
+AdvancedNetworkDetails = collections.namedtuple(
+    "AdvancedNetworkDetails",
+    [
+        "network_l2_config",
+        "network_l3_config",
+        "network_l4_config"
+    ]
+)
+
+
 class NotExistingMetadataException(Exception):
     pass
 
@@ -98,6 +108,10 @@ class BaseMetadataService(object):
             self._cache[key] = data
             return data
 
+    def _parse_legacy_network_data(self, legacy_network_data):
+        network_data = AdvancedNetworkDetails()
+        return network_data
+
     def get_instance_id(self):
         pass
 
@@ -130,7 +144,7 @@ class BaseMetadataService(object):
         pass
 
     def get_network_details(self):
-        """Return a list of `NetworkDetails` objects.
+        """Return a list of `AdvancedNetworkDetails` objects.
 
         These objects provide details regarding static
         network configuration, details which can be found

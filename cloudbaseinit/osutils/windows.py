@@ -1576,3 +1576,80 @@ class WindowsUtils(base.BaseOSUtils):
             raise exception.CloudbaseInitException(
                 'Failed to take path ownership.\nOutput: %(out)s\nError:'
                 ' %(err)s' % {'out': out, 'err': err})
+
+
+    def configure_l2_networking(self, network_l2_config=None):
+        if not network_l2_config:
+            raise exception.CloudbaseInitException(
+                'The L2 configuration info does not exist')
+        phy_links = [x for x in network_l2_config if x.get('type') == 'phy']
+        bond_links = [x for x in network_l2_config if x.get('type') == 'bond']
+        vlan_links = [x for x in network_l2_config if x.get('type') == 'vlan']
+        for phy_link in phy_links:
+            try:
+                self._config_phy_link(phy_link)
+            except Exception as exc:
+                LOG.debug(exc)
+        for vlan_link in vlan_links:
+            try:
+                self._config_vlan_link(vlan_link)
+            except Exception as exc:
+                LOG.debug(exc)
+        for bond_link in bond_links:
+            try:
+                self._config_bond_link(bond_link)
+            except Exception as exc:
+                LOG.debug(exc)
+
+    def configure_l3_networking(self, network_l3_config=None):
+        if not network_l3_config:
+            raise exception.CloudbaseInitException(
+                'The L3 configuration info does not exist')
+        for network_info in network_l3_config:
+            try:
+                self._config_network(network_info)
+            except Exception as exc:
+                LOG.debug(exc)
+
+    def configure_l4_networking(self, network_l4_config=None):
+        if not network_l4_config:
+            raise exception.CloudbaseInitException(
+                'The L4 configuration info does not exist')
+        if network_l4_config.get('dns_config'):
+            try:
+                self._set_dns(network_l4_config.get('dns_config'))
+            except Exception as exc:
+                LOG.debug(exc)
+
+
+    def _config_phy_link(self, phy_link):
+        if phy_link and phy_link.get('mac_address'):
+            if phy_link.get('mtu'):
+                self.set_network_adapter_mtu(phy_link.get('mac_address'), phy_link.get('mtu'))
+            # note(avladu)
+            # Implement link rename
+
+    def _config_vlan_link(self, vlan_link):
+        raise NotImplementedError(
+            "Failed to configure VLAN link. "
+            "Native VLANs are not supported on Windows.")
+
+    def _config_bond_link(self, bond_link):
+        # note(avladu)
+        # Implement LBFO bonding
+        raise NotImplementedError(
+            "Failed to configure BOND link. "
+            "Bonding is not yet implemented on Windows.")
+
+    def _config_network(self, network_info):
+        if network_info.get('type') == 'ipv4':
+            self.set_static_network_config(network_info.get('mac_address'), network_info.get('ip_address'),
+                network_info.get('netmask'), None, network_info.get('gateway'), None)
+        elif network_info.get('type') == 'ipv6':
+            self.set_static_network_config_v6(network_info.get('mac_address'), network_info.get('ip_address'),
+                network_info.get('netmask'), network_info.get('gateway'))
+        else:
+            LOG.debug("The network is automatically managed by DHCP. No need to set a configuration.")
+
+    def _set_dns(self, dns_config):
+        pass

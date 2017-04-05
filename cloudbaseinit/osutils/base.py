@@ -186,3 +186,12 @@ class BaseOSUtils(object):
 
     def take_path_ownership(self, path, username=None):
         raise NotImplementedError()
+
+    def configure_l2_networking(self, network_l2_config=None):
+        raise NotImplementedError()
+
+    def configure_l3_networking(self, network_l4_config=None):
+        raise NotImplementedError()
+
+    def configure_l4_networking(self, network_l4_config=None):
+        raise NotImplementedError()

@@ -202,7 +202,7 @@ class OpenNebulaService(base.BaseMetadataService):
         return self._get_cache_data(PUBLIC_KEY, decode=True).splitlines()
 
     def get_network_details(self):
-        """Return a list of NetworkDetails objects.
+        """Return a list of `AdvancedNetworkDetails` objects.
 
         With each object from that list, the corresponding
         NIC (by mac) can be statically configured.
@@ -249,4 +249,4 @@ class OpenNebulaService(base.BaseMetadataService):
                 LOG.debug("Incomplete NIC details")
             else:
                 network_details.append(details)
-        return network_details
+        return self._parse_legacy_network_data(network_details)
