@@ -145,7 +145,7 @@ class BaseOpenStackService(base.BaseMetadataService):
             return None
         parsed_networks = []
         for network in network_data['networks']:
-            parsed_network = {id: None, 'name': None, 'type': None, 'meta_type':None, 'mac_address':None, 'ip_address': None, 'netmask': None, 'gateway':None, 'routes': None}
+            parsed_network = {'id': None, 'name': None, 'type': None, 'meta_type':None, 'mac_address':None, 'ip_address': None, 'netmask': None, 'gateway':None, 'routes': None}
             if network['network_id']:
                 parsed_network['id'] = network['network_id']
             if network['id']:
@@ -159,12 +159,12 @@ class BaseOpenStackService(base.BaseMetadataService):
                 associated_link = [x for x in network_l2_config if x.get('name') == network['link']]
                 if associated_link and associated_link[0]['mac_address']:
                     parsed_network['mac_address'] = associated_link[0]['mac_address']
-            if network['ip_address']:
-                parsed_network['ip_address'] = network['ip_address']
+            if network.get('ip_address'):
+                parsed_network['ip_address'] = network.get('ip_address')
             if network.get('netmask'):
                 parsed_network['netmask'] = network.get('netmask')
-            if network['routes']:
-                parsed_network['routes'] = network['routes']
+            if network.get('routes'):
+                parsed_network['routes'] = network.get('routes')
                 route_gateway = [x for x in network['routes'] if (x.get('network') == '0.0.0.0' and x.get('netmask') == '0.0.0.0') or (x.get('network') == '::' and x.get('netmask') == '::')]
                 if route_gateway and route_gateway[0]['gateway']:
                     parsed_network['gateway'] = route_gateway[0]['gateway']
