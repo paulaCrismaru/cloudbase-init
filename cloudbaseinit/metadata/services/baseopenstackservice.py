@@ -109,16 +109,30 @@ class BaseOpenStackService(base.BaseMetadataService):
             return None
         parsed_links = []
         for link in network_data['links']:
-            parsed_link = {'name':None, 'type':None, 'meta_type':None, 'mac_address':None, 'mtu':None}
+            parsed_link = {'name':None, 'type':None, 'meta_type':None, 'mac_address':None, 'mtu':None,
+                           'extra_info': {
+                               'bond_info': {'bond_members':None, 'bond_mode': None},
+                               'vlan_info': {'vlan_id': None}
+                            }
+                          }
             if link['id']:
                 parsed_link['name'] = link['id']
+
             if link['type']:
                 parsed_link['meta_type'] = link['type']
                 parsed_link['type'] = 'phy'
                 if link['type'] in ['ovs', 'vif']:
                     parsed_link['type'] = 'phy'
-                elif link['type'] in ['phy', 'bond', 'vlan']:
+                elif link['type'] in ['phy', 'vlan']:
                     parsed_link['type'] = link['type']
+                elif link['type'] == 'bond':
+                    parsed_link['type'] = link['type']
+                    bond_info = parsed_link['extra_info']['bond_info']
+                    if link.get('bond_links'):
+                        bond_info['bond_members'] = link.get('bond_links')
+                    if link.get('bond_mode'):
+                        bond_info['bond_mode'] = link.get('bond_mode')
+
             if link.get('mtu'):
                 parsed_link['mtu'] = link.get('mtu')
             if link.get('ethernet_mac_address'):

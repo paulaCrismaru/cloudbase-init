@@ -13,5 +13,6 @@ PyYAML
 requests
 pywin32;sys_platform=="win32"
 comtypes;sys_platform=="win32"
-wmi;sys_platform=="win32"
+PyMI>=1.0.0;sys_platform=='win32' # Apache 2.0 License
+wmi;sys_platform=='win32' # MIT
 tzlocal;sys_platform=="win32"

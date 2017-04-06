@@ -33,6 +33,7 @@ import win32process
 import win32security
 import win32service
 import winerror
+import mi
 import wmi
 
 from cloudbaseinit import exception
@@ -1635,11 +1636,30 @@ class WindowsUtils(base.BaseOSUtils):
             "Native VLANs are not supported on Windows.")
 
     def _config_bond_link(self, bond_link):
-        # note(avladu)
-        # Implement LBFO bonding
-        raise NotImplementedError(
-            "Failed to configure BOND link. "
-            "Bonding is not yet implemented on Windows.")
+        bond_info = bond_link.get('extra_info').get('bond_info')
+        self.new_lbfo_team(team_members=bond_info.get('bond_members'),
+              team_name=bond_link.get('name'), teaming_mode=bond_info.get('bond_mode'))
+        LOG.debug('Bond {} configured'.format(bond_link.get('name')))
+
+    def new_lbfo_team(self, team_members, team_name, teaming_mode):
+        conn = wmi.WMI(moniker='root/standardcimv2')
+        obj = conn.MSFT_NetLbfoTeam.new()
+        obj.Name = 'nic_team'
+        custom_options = [
+            {'name': 'TeamMembers',
+             'value_type': mi.MI_ARRAY | mi.MI_STRING,
+             'value': team_members
+            },
+            {'name': 'TeamingMode',
+             'value_type': mi.MI_ARRAY | mi.MI_STRING,
+             'value': teaming_mode
+            },
+            {'name': 'TeamNicName',
+             'value_type': mi.MI_STRING,
+             'value': team_name}
+        ]
+        operation_options = {'custom_options': custom_options}
+        obj.put(operation_options=operation_options)
 
     def _config_network(self, network_info):
         if network_info.get('type') == 'ipv4':
