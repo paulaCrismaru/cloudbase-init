@@ -1590,17 +1590,17 @@ class WindowsUtils(base.BaseOSUtils):
             try:
                 self._config_phy_link(phy_link)
             except Exception as exc:
-                LOG.debug(exc)
+                LOG.exception(exc)
         for vlan_link in vlan_links:
             try:
                 self._config_vlan_link(vlan_link)
             except Exception as exc:
-                LOG.debug(exc)
+                LOG.exception(exc)
         for bond_link in bond_links:
             try:
                 self._config_bond_link(bond_link)
             except Exception as exc:
-                LOG.debug(exc)
+                LOG.exception(exc)
 
     def configure_l3_networking(self, network_l3_config=None):
         if not network_l3_config:
@@ -1610,7 +1610,7 @@ class WindowsUtils(base.BaseOSUtils):
             try:
                 self._config_network(network_info)
             except Exception as exc:
-                LOG.debug(exc)
+                LOG.exception(exc)
 
     def configure_l4_networking(self, network_l4_config=None):
         if not network_l4_config:
@@ -1620,7 +1620,7 @@ class WindowsUtils(base.BaseOSUtils):
             try:
                 self._set_dns(network_l4_config.get('dns_config'))
             except Exception as exc:
-                LOG.debug(exc)
+                LOG.exception(exc)
 
 
     def _config_phy_link(self, phy_link):
