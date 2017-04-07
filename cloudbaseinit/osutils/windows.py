@@ -15,6 +15,8 @@
 import contextlib
 import ctypes
 from ctypes import wintypes
+import mi
+import netaddr
 import os
 import re
 import struct
@@ -33,7 +35,6 @@ import win32process
 import win32security
 import win32service
 import winerror
-import mi
 import wmi
 
 from cloudbaseinit import exception
@@ -1666,10 +1667,18 @@ class WindowsUtils(base.BaseOSUtils):
             self.set_static_network_config(network_info.get('mac_address'), network_info.get('ip_address'),
                 network_info.get('netmask'), None, network_info.get('gateway'), None)
         elif network_info.get('type') == 'ipv6':
+            if not network_info.get('prefix') and network_info.get('netmask'):
+                network_info['prefix'] = self._ipv6_netmask_to_prefix(network_info.get('netmask'))
             self.set_static_network_config_v6(network_info.get('mac_address'), network_info.get('ip_address'),
-                network_info.get('netmask'), network_info.get('gateway'))
+                network_info.get('prefix'), network_info.get('gateway'))
         else:
             LOG.debug("The network is automatically managed by DHCP. No need to set a configuration.")
+
+    def _ipv6_netmask_to_prefix(self, netmask):
+        if netaddr.IPAddress(netmask).is_netmask():
+            return netaddr.IPAddress(netmask).netmask_bits()
+        else:
+            Log.debug("IPv6 netmask is not valid")
 
     def _set_dns(self, dns_config):
         pass
