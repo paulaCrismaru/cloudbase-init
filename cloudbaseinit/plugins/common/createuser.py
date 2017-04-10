@@ -64,6 +64,13 @@ class BaseCreateUserPlugin(base.BasePlugin):
             admin_user_name = [u for u in osutils.enum_users()
                                if osutils.is_builtin_admin(u)][0]
 
+            if osutils.user_exists(user_name):
+                LOG.exception('A builtin admin user with username '
+                              '"%(new_user_name)s" already exists, '
+                              'skipping renaming',
+                              {'new_user_name': user_name})
+                return base.PLUGIN_EXECUTION_DONE, False
+
             if admin_user_name.lower() != user_name.lower():
                 LOG.info('Renaming builtin admin user "%(admin_user_name)s" '
                          'to %(new_user_name)s and setting password',

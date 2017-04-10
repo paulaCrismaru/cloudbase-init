@@ -59,11 +59,13 @@ class CreateUserPluginTests(unittest.TestCase):
     def _test_execute(self, mock_post_create_user, mock_create_user,
                       mock_get_password, mock_get_os_utils,
                       user_exists=False, group_adding_works=True,
-                      rename_admin_user=False, rename_admin_taken=False):
+                      rename_admin_user=False, rename_admin_taken=False,
+                      new_username_taken=False):
         shared_data = {}
         mock_osutils = mock.MagicMock()
         mock_service = mock.MagicMock()
         mock_service.get_admin_username.return_value = CONF.username
+        admin_username = CONF.username
         mock_get_password.return_value = 'password'
         mock_get_os_utils.return_value = mock_osutils
         mock_osutils.user_exists.return_value = user_exists
@@ -73,6 +75,8 @@ class CreateUserPluginTests(unittest.TestCase):
                 mock_osutils.enum_users.return_value = [CONF.username]
             else:
                 mock_osutils.enum_users.return_value = ["fake user name"]
+            if new_username_taken:
+                mock_osutils.user_exists.return_value = True
         if not group_adding_works:
             mock_osutils.add_user_to_local_group.side_effect = Exception
 
@@ -96,6 +100,13 @@ class CreateUserPluginTests(unittest.TestCase):
                     '"%s" is already the name of the builtin admin '
                     'user, skipping renaming' % CONF.username
                 ]
+            elif new_username_taken:
+                expected_logging = [
+                    'A builtin admin user with username '
+                    '"{new_user_name}" already exists, '
+                    'skipping renaming'.format(
+                        new_user_name=admin_username)
+                ]
             else:
                 expected_logging = [
                     'Renaming builtin admin user "{admin_user_name}" '
@@ -110,18 +121,21 @@ class CreateUserPluginTests(unittest.TestCase):
             expected_logging = ["Creating user \"%s\" and setting password"
                                 % CONF.username]
 
-        mock_post_create_user.assert_called_once_with(
-            CONF.username, 'password',
-            mock_osutils)
+        if not new_username_taken:
+            mock_post_create_user.assert_called_once_with(
+                CONF.username, 'password',
+                mock_osutils)
 
-        self.assertEqual(expected_logging, snatcher.output[:1])
-        if not group_adding_works:
-            failed = snatcher.output[1].startswith(
-                "Cannot add user to group \"Admins\"")
-            self.assertTrue(failed)
+            if not group_adding_works:
+                failed = snatcher.output[1].startswith(
+                    "Cannot add user to group \"Admins\"")
+                self.assertTrue(failed)
 
-        mock_osutils.add_user_to_local_group.assert_called_once_with(
-            CONF.username, CONF.groups[0])
+            mock_osutils.add_user_to_local_group.assert_called_once_with(
+                CONF.username, CONF.groups[0])
+            self.assertEqual(expected_logging, snatcher.output[:1])
+        else:
+            self.assertTrue(snatcher.output[0].startswith(expected_logging[0]))
         self.assertEqual((base.PLUGIN_EXECUTION_DONE, False), response)
 
     def test_execute_user_exists(self):
@@ -140,4 +154,4 @@ class CreateUserPluginTests(unittest.TestCase):
 
     def test_execute_rename_admin_taken(self):
         self._test_execute(rename_admin_user=True,
-                           rename_admin_taken=True)
+                           new_username_taken=True)
