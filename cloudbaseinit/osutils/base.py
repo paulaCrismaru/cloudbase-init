@@ -189,3 +189,26 @@ class BaseOSUtils(object):
 
     def take_path_ownership(self, path, username=None):
         raise NotImplementedError()
+
+    def configure_l2_networking(self, network_l2_config=None):
+        """Configures OSI L2 networking
+
+        Configures network adapter names, MTU value, creates network teams
+        and VLANs network adapters, in the given order.
+        """
+        raise NotImplementedError()
+
+    def configure_l3_networking(self, network_l4_config=None):
+        """Configures OSI L3 networking
+
+        Configures network adapter IPs, subnets, netmasks and routes.
+        """
+        raise NotImplementedError()
+
+    def configure_l4_networking(self, network_l4_config=None):
+        """Configures OSI L4 or higher networking
+
+        Configures network adapter specific or system wide DNS servers,
+        NTP servers, etc.
+        """
+        raise NotImplementedError()
