@@ -49,6 +49,50 @@ NetworkDetails = collections.namedtuple(
 )
 
 
+AdvancedNetworkDetails = collections.namedtuple(
+    "AdvancedNetworkDetails",
+    [
+        "network_l2_config",
+        "network_l3_config",
+        "network_l4_config"
+    ]
+)
+
+
+L2NetworkDetails = {
+    'name': None,
+    'type': None,
+    'meta_type': None,
+    'mac_address': None,
+    'mtu': None,
+    'bond_info': {
+        'bond_members': [],
+        'bond_mode': None
+    },
+    'vlan_info': {
+        'vlan_id': None
+    }
+}
+
+
+L3NetworkDetails = {
+    'id': None,
+    'name': None,
+    'type': None,
+    'meta_type': None,
+    'mac_address': None,
+    'ip_address': None,
+    'prefix': None,
+    'gateway': None,
+    'netmask': None,
+    'dns_nameservers': []
+}
+
+L4NetworkDetails = {
+    'global_dns_nameservers': []
+}
+
+
 class NotExistingMetadataException(Exception):
     pass
 
@@ -127,6 +171,13 @@ class BaseMetadataService(object):
 
     def get_public_keys(self):
         """Get a list of space-stripped strings as public keys."""
+        pass
+
+    def _parse_legacy_network_data(self, legacy_network_data):
+        """Parses the NetworkDetails to AdvancedNetworkDetails
+
+        The parsing is needed for backwards compatibility.
+        """
         pass
 
     def get_network_details(self):
