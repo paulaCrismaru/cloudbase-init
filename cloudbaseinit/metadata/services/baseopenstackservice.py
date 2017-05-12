@@ -79,7 +79,37 @@ class BaseOpenStackService(base.BaseMetadataService):
         content = self.get_content(content_name)
         content = encoding.get_as_string(content)
 
-        return debiface.parse(content)
+        return self._parse_legacy_network_data(debiface.parse(content))
+
+    def _parse_legacy_network_data(self, legacy_network_data):
+        if not legacy_network_data:
+            return
+        parsed_links = []
+        parsed_networks = []
+        for iface in legacy_network_data:
+            parsed_link = base.L2NetworkDetails.copy()
+            parsed_network_ipv4 = base.L3NetworkDetails.copy()
+            parsed_network_ipv6 = base.L3NetworkDetails.copy()
+
+            parsed_link['id'] = iface.get('name')
+            parsed_link['name'] = iface.get('name')
+            parsed_link['mac_address'] = iface.get('mac')
+
+            parsed_network_ipv4['ip_address'] = iface.get('address')
+            parsed_network_ipv4['netmask'] = iface.get('netmask')
+            parsed_network_ipv4['gateway'] = iface.get('gateway')
+            parsed_network_ipv4['dns_nameservers'] = iface.get('dnsnameservers')
+
+            parsed_network_ipv6['ip_address'] = iface.get('address6')
+            parsed_network_ipv6['netmask'] = iface.get('netmask6')
+            parsed_network_ipv6['gateway'] = iface.get('gateway6')
+            parsed_links.append(parsed_link)
+            parsed_networks.append(parsed_network_ipv4)
+            parsed_networks.append(parsed_network_ipv6)
+
+        return base.AdvancedNetworkDetails(parsed_links,
+                                           parsed_networks,
+                                           None)
 
     def get_admin_password(self):
         meta_data = self._get_meta_data()
