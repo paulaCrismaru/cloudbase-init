@@ -67,6 +67,7 @@ class TestWindowsUtils(testutils.CloudbaseInitTestBase):
         self._xmlrpc_client_mock = mock.MagicMock()
         self._ctypes_mock = mock.MagicMock()
         self._tzlocal_mock = mock.Mock()
+        self._netaddr = mock.MagicMock()
 
         self._win32net_mock.error = Exception
         module_path = "cloudbaseinit.osutils.windows"
@@ -87,7 +88,8 @@ class TestWindowsUtils(testutils.CloudbaseInitTestBase):
              'ctypes': self._ctypes_mock,
              'pywintypes': self._pywintypes_mock,
              'tzlocal': self._tzlocal_mock,
-             'winioctlcon': mock.MagicMock()})
+             'winioctlcon': mock.MagicMock(),
+             'netaddr': self._netaddr})
         _module_patcher.start()
         self.addCleanup(_module_patcher.stop)
 
@@ -2593,3 +2595,153 @@ class TestWindowsUtils(testutils.CloudbaseInitTestBase):
         self._win32api_mock.GetFileVersionInfo.assert_called_once_with(
             mock_path, '\\')
         self.assertIsNotNone(res)
+
+    def test_get_network_adapter(self):
+        conn = self._wmi_mock.WMI
+        mock_response = mock.MagicMock()
+        conn.return_value.query.return_value = [mock_response]
+        mac_address = '54:EE:75:19:F4:61'
+        wql = ("SELECT * FROM Win32_NetworkAdapter WHERE "
+               "MACAddress = '{}'".format(mac_address))
+
+        response = self._winutils._get_network_adapter(mac_address)
+
+        conn.return_value.query.assert_called_with(wql)
+        self.assertEqual(mock_response, response)
+
+    def test_get_network_adapter_fails(self):
+        conn = self._wmi_mock.WMI
+        mock_response = mock.MagicMock()
+        conn.return_value.query.return_value = mock_response
+        mac_address = '54:EE:75:19:F4:61'
+        wql = ("SELECT * FROM Win32_NetworkAdapter WHERE "
+               "MACAddress = '{}'".format(mac_address))
+        with self.assertRaises(exception.CloudbaseInitException) as ex:
+            self._winutils._get_network_adapter(mac_address)
+        expected_log = "Network adapter not found"
+        self.assertEqual(str(ex.exception), expected_log)
+        conn.return_value.query.assert_called_with(wql)
+
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '._get_network_adapter')
+    def test_set_network_adapter_name(self, mock_get_network_adapter):
+        mac_address = '54:EE:75:19:F4:61'
+        name = "fake name"
+        mock_network_adapter = mock.MagicMock()
+        mock_get_network_adapter.return_value = mock_network_adapter
+        expected_output = [
+            'Setting interface "%(mac_address)s" name with value "%(name)s"' %
+            {'mac_address': mac_address, 'name': name}
+        ]
+        with self.snatcher:
+            self._winutils.set_network_adapter_name(mac_address, name)
+        self.assertEqual(self.snatcher.output, expected_output)
+        mock_get_network_adapter.assert_called_with(mac_address)
+        mock_network_adapter.put.assert_called_once_with()
+        self.assertEqual(mock_network_adapter.NetConnectionID, name)
+
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '.set_network_adapter_name')
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '.set_network_adapter_mtu')
+    def test_config_phy_link(self, mock_set_mtu, mock_set_name):
+        mock_phy_link = mock.Mock()
+        mock_phy_link.get.return_value = "fake data"
+
+        self._winutils._config_phy_link(mock_phy_link)
+
+        mock_set_mtu.assert_called_with("fake data", "fake data")
+        mock_set_name.assert_called_with("fake data", "fake data")
+        self.assertEqual(mock_phy_link.get.call_count, 7)
+
+    def test_configure_l2_networking_none(self):
+        with self.assertRaises(exception.CloudbaseInitException) as ex:
+            self._winutils.configure_l2_networking(None)
+        self.assertEqual(str(ex.exception),
+                         'The L2 configuration info does not exist')
+
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '._config_vlan_link')
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '._config_bond_link')
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '._config_phy_link')
+    def test_configure_l2_networking(self, mock_config_phy, mock_config_bond,
+                                     mock_config_vlan):
+        mock_l2 = [
+            {'type': 'phy'},
+            {'type': 'bond'},
+            {'type': 'vlan'},
+        ]
+        self._winutils.configure_l2_networking(mock_l2)
+        mock_config_phy.assert_called_once_with({'type': 'phy'})
+        mock_config_bond.assert_called_once_with({'type': 'bond'})
+        mock_config_vlan.assert_called_once_with({'type': 'vlan'})
+
+    def test_ipv6_netmask_to_prefix(self):
+        mock_ipaddress = mock.Mock()
+        self._netaddr.IPAddress.return_value = mock_ipaddress
+        mock_ipaddress.is_netmask.return_value = True
+        netmask = "255.255.255.0"
+        self.assertEqual(
+            self._winutils._ipv6_netmask_to_prefix(netmask),
+            mock_ipaddress.netmask_bits())
+
+    def test_ipv6_netmask_to_prefix_invalid(self):
+        mock_ipaddress = mock.Mock()
+        self._netaddr.IPAddress.return_value = mock_ipaddress
+        mock_ipaddress.is_netmask.return_value = False
+        netmask = "255.255.255.0"
+        with self.snatcher:
+            self._winutils._ipv6_netmask_to_prefix(netmask)
+        self.assertEqual(self.snatcher.output,
+                         ["IPv6 netmask is not valid"])
+
+    def _test_config_network(self, mock_set_static_network, address_type):
+        mock_network_info = {
+            'type': address_type,
+            'mac_address': 'fake data',
+            'netmask': 'fake data',
+            'gateway': 'fake data',
+            'dns_nameservers': 'fake data',
+            'prefix': None
+        }
+        self._winutils._config_network(mock_network_info)
+        self.assertEqual(mock_set_static_network.call_count, 1)
+
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '.set_static_network_config')
+    def test_config_network_ipv4(self, mock_set_static_network):
+        self._test_config_network(mock_set_static_network, 'ipv4')
+
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '._ipv6_netmask_to_prefix')
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '.set_static_network_config_v6')
+    def test_config_network_ipv6(self, mock_set_static_network,
+                                 mock_netmask_to_prefix):
+        self._test_config_network(mock_set_static_network, 'ipv6')
+        mock_netmask_to_prefix.assert_called_once_with('fake data')
+
+    def test_config_network_dhcp(self):
+        with self.snatcher:
+            self._winutils._config_network({})
+        expected_output = [
+            "The network is automatically managed by DHCP."
+            "No need to set a configuration."
+        ]
+        self.assertEqual(self.snatcher.output, expected_output)
+
+    def test_configure_l3_networking_none(self):
+        with self.assertRaises(exception.CloudbaseInitException) as ex:
+            self._winutils.configure_l3_networking()
+        self.assertEqual(
+            str(ex.exception),
+            'The L3 configuration info does not exist')
+
+    @mock.patch('cloudbaseinit.osutils.windows.WindowsUtils'
+                '._config_network')
+    def test_configure_l3_networking(self, mock_config_network):
+        mock_l3 = [mock.Mock()]
+        self._winutils.configure_l3_networking(mock_l3)
+        mock_config_network.assert_called_once_with(mock_l3[0])

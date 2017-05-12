@@ -15,6 +15,7 @@
 import contextlib
 import ctypes
 from ctypes import wintypes
+import netaddr
 import os
 import re
 import struct
@@ -716,6 +717,24 @@ class WindowsUtils(base.BaseOSUtils):
                 'w32tm failed to configure NTP.\nOutput: %(out)s\nError:'
                 ' %(err)s' % {'out': out, 'err': err})
 
+    def _get_network_adapter(self, mac_address):
+        conn = wmi.WMI(moniker='//./root/cimv2')
+
+        query = conn.query("SELECT * FROM Win32_NetworkAdapter WHERE "
+                           "MACAddress = '{}'".format(mac_address))
+        if not len(query) or len(query) is not 1:
+            raise exception.CloudbaseInitException(
+                "Network adapter not found")
+        return query[0]
+
+    def set_network_adapter_name(self, mac_address, name):
+        network_adapter = self._get_network_adapter(mac_address)
+        network_adapter.NetConnectionID = name
+        LOG.debug('Setting interface "%(mac_address)s" name '
+                  'with value "%(name)s"',
+                  {'mac_address': mac_address, 'name': name})
+        network_adapter.put()
+
     def set_network_adapter_mtu(self, mac_address, mtu):
         if not self.check_os_version(6, 0):
             raise exception.CloudbaseInitException(
@@ -753,15 +772,8 @@ class WindowsUtils(base.BaseOSUtils):
 
     def set_static_network_config(self, mac_address, address, netmask,
                                   broadcast, gateway, dnsnameservers):
-        conn = wmi.WMI(moniker='//./root/cimv2')
-
-        query = conn.query("SELECT * FROM Win32_NetworkAdapter WHERE "
-                           "MACAddress = '{}'".format(mac_address))
-        if not len(query):
-            raise exception.CloudbaseInitException(
-                "Network adapter not found")
-
-        adapter_config = query[0].associators(
+        network_adapter = self._get_network_adapter(mac_address)
+        adapter_config = network_adapter.associators(
             wmi_result_class='Win32_NetworkAdapterConfiguration')[0]
 
         LOG.debug("Setting static IP address")
@@ -1603,3 +1615,87 @@ class WindowsUtils(base.BaseOSUtils):
         ls = info['FileVersionLS']
         return (win32api.HIWORD(ms), win32api.LOWORD(ms),
                 win32api.HIWORD(ls), win32api.LOWORD(ls))
+
+    def _config_phy_link(self, phy_link):
+        if phy_link and phy_link.get('mac_address'):
+            if phy_link.get('mtu'):
+                self.set_network_adapter_mtu(phy_link.get('mac_address'),
+                                             phy_link.get('mtu'))
+            if phy_link.get('name'):
+                self.set_network_adapter_name(phy_link.get('mac_address'),
+                                              phy_link.get('name'))
+
+    def _config_vlan_link(self, vlan_link):
+        # TODO(avladu): Implement VLAN on NET_LBFO bonds
+        raise NotImplementedError()
+
+    def _config_bond_link(self, bond_link):
+        # TODO(avladu): Implement NET_LBFO bonding
+        raise NotImplementedError()
+
+    def configure_l2_networking(self, network_l2_config=None):
+        """Configures OSI L2 networking
+
+        Configures network adapter names, MTU value, creates network teams
+        and VLANs network adapters, in this given order.
+        """
+        if not network_l2_config:
+            raise exception.CloudbaseInitException(
+                'The L2 configuration info does not exist')
+        phy_links = [x for x in network_l2_config if x.get('type') == 'phy']
+        bond_links = [x for x in network_l2_config if x.get('type') == 'bond']
+        vlan_links = [x for x in network_l2_config if x.get('type') == 'vlan']
+        for phy_link in phy_links:
+            try:
+                self._config_phy_link(phy_link)
+            except Exception as exc:
+                LOG.exception(exc)
+        for bond_link in bond_links:
+            try:
+                self._config_bond_link(bond_link)
+            except Exception as exc:
+                LOG.exception(exc)
+        for vlan_link in vlan_links:
+            try:
+                self._config_vlan_link(vlan_link)
+            except Exception as exc:
+                LOG.exception(exc)
+
+    def _ipv6_netmask_to_prefix(self, netmask):
+        if netaddr.IPAddress(netmask).is_netmask():
+            return netaddr.IPAddress(netmask).netmask_bits()
+        else:
+            LOG.debug("IPv6 netmask is not valid")
+
+    def _config_network(self, network_info):
+        if network_info.get('type') == 'ipv4':
+            self.set_static_network_config(network_info.get('mac_address'),
+                                           network_info.get('ip_address'),
+                                           network_info.get('netmask'), None,
+                                           network_info.get('gateway'),
+                                           network_info.get('dns_nameservers'))
+        elif network_info.get('type') == 'ipv6':
+            if not network_info.get('prefix') and network_info.get('netmask'):
+                network_info['prefix'] = self._ipv6_netmask_to_prefix(
+                    network_info.get('netmask'))
+            self.set_static_network_config_v6(network_info.get('mac_address'),
+                                              network_info.get('ip_address'),
+                                              network_info.get('prefix'),
+                                              network_info.get('gateway'))
+        else:
+            LOG.debug("The network is automatically managed by DHCP."
+                      "No need to set a configuration.")
+
+    def configure_l3_networking(self, network_l3_config=None):
+        """Configures OSI L3 networking
+
+        Configures network adapter IPs, subnets, netmasks and routes.
+        """
+        if not network_l3_config:
+            raise exception.CloudbaseInitException(
+                'The L3 configuration info does not exist')
+        for network_info in network_l3_config:
+            try:
+                self._config_network(network_info)
+            except Exception as exc:
+                LOG.exception(exc)
