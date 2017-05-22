@@ -29,6 +29,9 @@ class FakeService(base.BaseMetadataService):
     def get_user_data(self):
         return self._get_data()
 
+    def get_vendor_data(self):
+        return self._get_data()
+
 
 class TestBase(unittest.TestCase):
 
@@ -38,6 +41,10 @@ class TestBase(unittest.TestCase):
     def test_get_decoded_user_data(self):
         userdata = self._service.get_decoded_user_data()
         self.assertEqual("of course it works", userdata)
+
+    def test_get_decoded_vendor_data(self):
+        vendordata = self._service.get_decoded_vendor_data()
+        self.assertEqual(b"of course it works", vendordata)
 
     def test_get_name(self):
         self.assertEqual(self._service.get_name(), 'FakeService')
