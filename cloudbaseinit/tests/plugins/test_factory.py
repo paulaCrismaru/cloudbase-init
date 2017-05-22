@@ -43,6 +43,7 @@ STAGE = {
         'SetUserSSHPublicKeysPlugin',
         'cloudbaseinit.plugins.windows.extendvolumes.ExtendVolumesPlugin',
         'cloudbaseinit.plugins.common.userdata.UserDataPlugin',
+        'cloudbaseinit.plugins.common.userdata.VendorDataPlugin',
         'cloudbaseinit.plugins.common.setuserpassword.'
         'SetUserPasswordPlugin',
         'cloudbaseinit.plugins.windows.winrmlistener.'

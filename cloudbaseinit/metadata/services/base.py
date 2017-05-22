@@ -107,6 +107,22 @@ class BaseMetadataService(object):
     def get_user_data(self):
         pass
 
+    def get_vendor_data(self):
+        pass
+
+    def _get_decoded_data(self, data):
+        """Get the decoded data, if any
+
+        The user data can be gzip-encoded, which means
+        that every access to it should verify this fact,
+        leading to code duplication.
+        """
+        if data and data[:2] == self._GZIP_MAGIC_NUMBER:
+            bio = io.BytesIO(data)
+            with gzip.GzipFile(fileobj=bio, mode='rb') as out:
+                data = out.read()
+        return data
+
     def get_decoded_user_data(self):
         """Get the decoded user data, if any
 
@@ -115,12 +131,16 @@ class BaseMetadataService(object):
         leading to code duplication.
         """
         user_data = self.get_user_data()
-        if user_data and user_data[:2] == self._GZIP_MAGIC_NUMBER:
-            bio = io.BytesIO(user_data)
-            with gzip.GzipFile(fileobj=bio, mode='rb') as out:
-                user_data = out.read()
+        return self._get_decoded_data(user_data)
 
-        return user_data
+    def get_decoded_vendor_data(self):
+        """Get the decoded vendor data, if any
+        The vendor data can be gzip-encoded, which means
+        that every access to it should verify this fact,
+        leading to code duplication.
+        """
+        vendor_data = self.get_vendor_data()
+        return self._get_decoded_data(vendor_data)
 
     def get_host_name(self):
         pass

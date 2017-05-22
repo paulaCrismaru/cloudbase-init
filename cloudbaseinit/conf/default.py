@@ -193,6 +193,7 @@ class GlobalOptions(conf_base.Options):
                     'cloudbaseinit.plugins.windows.extendvolumes'
                     '.ExtendVolumesPlugin',
                     'cloudbaseinit.plugins.common.userdata.UserDataPlugin',
+                    'cloudbaseinit.plugins.common.vendordata.VendorDataPlugin',
                     'cloudbaseinit.plugins.common.setuserpassword.'
                     'SetUserPasswordPlugin',
                     'cloudbaseinit.plugins.windows.winrmlistener.'
@@ -261,6 +262,10 @@ class GlobalOptions(conf_base.Options):
                 'process_userdata', default=True,
                 help='Processes the userdata content based on the type, e.g. '
                      'executing a PowerShell script'),
+            cfg.BoolOpt(
+                'process_vendordata', default=True,
+                help='Processes the vendordata content based on the type, '
+                     'e.g. executing a PowerShell script'),
             cfg.StrOpt(
                 'userdata_save_path',
                 default=None,
