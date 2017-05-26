@@ -120,7 +120,7 @@ class BaseMetadataService(object):
             with gzip.GzipFile(fileobj=bio, mode='rb') as out:
                 user_data = out.read()
 
-        return user_data
+        return encoding.get_as_string(user_data)
 
     def get_host_name(self):
         pass

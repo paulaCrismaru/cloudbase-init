@@ -74,14 +74,12 @@ class UserDataPlugin(base.BasePlugin):
             os.unlink(user_data_path)
 
         LOG.debug("Writing userdata to: %s", user_data_path)
-        with open(user_data_path, 'wb') as file:
-            file.write(user_data)
+        encoding.write_file(user_data_path, user_data, mode='wb')
 
     @staticmethod
     def _parse_mime(user_data):
-        user_data_str = encoding.get_as_string(user_data)
-        LOG.debug('User data content:\n%s', user_data_str)
-        return email.message_from_string(user_data_str).walk()
+        LOG.debug('User data content:\n%s', user_data)
+        return email.message_from_string(user_data).walk()
 
     @staticmethod
     def _get_headers(user_data):
@@ -92,9 +90,8 @@ class UserDataPlugin(base.BasePlugin):
         .. note :: In case the content type is not valid,
                    None will be returned.
         """
-        content = encoding.get_as_string(user_data)
-        if content:
-            return content.split("\n\n")[0]
+        if user_data:
+            return user_data.split("\n\n")[0]
         else:
             raise exception.CloudbaseInitException("No header could be found."
                                                    "The user data content is "
@@ -188,13 +185,14 @@ class UserDataPlugin(base.BasePlugin):
 
     def _process_non_multi_part(self, user_data):
         ret_val = None
-        if user_data.startswith(b'#cloud-config'):
+        if user_data.startswith('#cloud-config'):
             user_data_plugins = factory.load_plugins()
             cloud_config_plugin = user_data_plugins.get('text/cloud-config')
             ret_val = cloud_config_plugin.process_non_multipart(user_data)
-        elif user_data.strip().startswith(x509constants.PEM_HEADER.encode()):
+        elif user_data.strip().startswith(x509constants.PEM_HEADER):
             LOG.debug('Found X509 certificate in userdata')
         else:
-            ret_val = userdatautils.execute_user_data_script(user_data)
+            ret_val = userdatautils.execute_user_data_script(
+                user_data.encode())
 
         return execcmd.get_plugin_return_value(ret_val)

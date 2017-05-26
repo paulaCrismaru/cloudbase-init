@@ -77,7 +77,6 @@ class BaseOpenStackService(base.BaseMetadataService):
 
         content_name = network_config[key].rsplit("/", 1)[-1]
         content = self.get_content(content_name)
-        content = encoding.get_as_string(content)
 
         return debiface.parse(content)
 
