@@ -35,7 +35,7 @@ class FakeService(object):
         self.vendor_data = vendor_data
 
     def get_decoded_vendor_data(self):
-        return self.vendor_data.encode()
+        return self.vendor_data
 
 
 def _create_tempfile():

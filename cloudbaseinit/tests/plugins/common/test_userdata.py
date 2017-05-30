@@ -75,3 +75,45 @@ class UserDataPluginTest(unittest.TestCase):
     def test_execute_NotExistingMetadataException(self):
         self._test_execute(
             ret_val=metadata_services_base.NotExistingMetadataException)
+
+
+class TestCloudConfig(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.plugin = userdata.UserDataPlugin()
+        cls.userdata = pkgutil.get_data('cloudbaseinit.tests.resources',
+                                        'cloud_config_userdata').decode()
+
+    def create_tempfiles(self, number):
+        for _ in range(number):
+            tmp = _create_tempfile()
+            self.addCleanup(os.remove, tmp)
+            yield tmp
+
+    def test_cloud_config_multipart(self):
+        b64, b64_binary, gz, gz_binary = list(self.create_tempfiles(4))
+
+        service = FakeService(self.userdata.format(b64=b64,
+                                                   b64_binary=b64_binary,
+                                                   gzip=gz,
+                                                   gzip_binary=gz_binary))
+        with testutils.LogSnatcher('cloudbaseinit.plugins.'
+                                   'common.userdataplugins.'
+                                   'cloudconfigplugins') as snatcher:
+            status, reboot = self.plugin.execute(service, {})
+
+        for path in (b64, b64_binary, gz, gz_binary):
+            self.assertTrue(os.path.exists(path),
+                            "Path {} should exist.".format(path))
+            with open(path) as stream:
+                self.assertEqual('42', stream.read())
+
+        self.assertEqual(status, 1)
+        self.assertFalse(reboot)
+        expected_logging = [
+            'Unknown encoding, doing nothing.',
+            'Fail to process permissions None, assuming 420',
+            'Fail to process permissions None, assuming 420',
+            'Fail to process permissions None, assuming 420'
+        ]
+        self.assertEqual(expected_logging, snatcher.output)
