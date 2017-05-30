@@ -34,7 +34,7 @@ class FakeService(object):
         self.user_data = user_data
 
     def get_decoded_user_data(self):
-        return self.user_data.encode()
+        return self.user_data
 
 
 def _create_tempfile():
@@ -86,24 +86,20 @@ class UserDataPluginTest(unittest.TestCase):
         self._test_write_data(os_exists_effects=(False, True))
 
     @mock.patch('email.message_from_string')
-    @mock.patch('cloudbaseinit.utils.encoding.get_as_string')
-    def test_parse_mime(self, mock_get_as_string,
-                        mock_message_from_string):
+    def test_parse_mime(self, mock_message_from_string):
         fake_data = textwrap.dedent('''
         -----BEGIN CERTIFICATE-----
         MIIDGTCCAgGgAwIBAgIJAN5fj7R5dNrMMA0GCSqGSIb3DQEBCwUAMCExHzAdBgNV
         BAMTFmNsb3VkYmFzZS1pbml0LWV4YW1wbGUwHhcNMTUwNDA4MTIyNDI1WhcNMjUw
         ''')
         expected_logging = ['Data content:\n%s' % fake_data]
-        mock_get_as_string.return_value = fake_data
 
         with testutils.LogSnatcher('cloudbaseinit.plugins.common.'
                                    'basedataplugin') as snatcher:
             response = self._data._parse_mime(data=fake_data)
 
-        mock_get_as_string.assert_called_once_with(fake_data)
         mock_message_from_string.assert_called_once_with(
-            mock_get_as_string.return_value)
+            fake_data)
         self.assertEqual(response, mock_message_from_string().walk())
         self.assertEqual(expected_logging, snatcher.output)
 
@@ -134,7 +130,7 @@ class UserDataPluginTest(unittest.TestCase):
 
         response = self._data._process_data(data=data)
 
-        if data.startswith(b'Content-Type: multipart'):
+        if data.startswith('Content-Type: multipart'):
             mock_load_plugins.assert_called_once_with()
             mock_parse_mime.assert_called_once_with(data)
             mock_process_part.assert_called_once_with(mock_part,
@@ -146,15 +142,15 @@ class UserDataPluginTest(unittest.TestCase):
                              response)
 
     def test_process_data_multipart_reboot_true(self):
-        self._test_process_data(data=b'Content-Type: multipart',
+        self._test_process_data(data='Content-Type: multipart',
                                 reboot=True)
 
     def test_process_data_multipart_reboot_false(self):
-        self._test_process_data(data=b'Content-Type: multipart',
+        self._test_process_data(data='Content-Type: multipart',
                                 reboot=False)
 
     def test_process_data_non_multipart(self):
-        self._test_process_data(data=b'Content-Type: non-multipart',
+        self._test_process_data(data='Content-Type: non-multipart',
                                 reboot=False)
 
     @mock.patch('cloudbaseinit.plugins.common.basedataplugin.'
@@ -281,9 +277,9 @@ class UserDataPluginTest(unittest.TestCase):
     @mock.patch('cloudbaseinit.plugins.common.userdatautils'
                 '.execute_user_data_script')
     def test_process_non_multi_part(self, mock_execute_data_script):
-        data = b'fake'
+        data = 'fake'
         status, reboot = self._data._process_non_multi_part(data=data)
-        mock_execute_data_script.assert_called_once_with(data)
+        mock_execute_data_script.assert_called_once_with(data.encode())
         self.assertEqual(status, 1)
         self.assertFalse(reboot)
 
@@ -296,7 +292,7 @@ class UserDataPluginTest(unittest.TestCase):
         MIIC9zCCAd8CAgPoMA0GCSqGSIb3DQEBBQUAMBsxGTAXBgNVBAMUEHVidW50dUBs
         b2NhbGhvc3QwHhcNMTUwNjE1MTAyODUxWhcNMjUwNjEyMTAyODUxWjAbMRkwFwYD
         -----END CERTIFICATE-----
-        ''').encode()
+        ''')
         with testutils.LogSnatcher('cloudbaseinit.plugins.'
                                    'common.basedataplugin') as snatcher:
             status, reboot = self._data._process_non_multi_part(data=data)
@@ -310,7 +306,7 @@ class UserDataPluginTest(unittest.TestCase):
     @mock.patch('cloudbaseinit.plugins.common.userdataplugins.factory.'
                 'load_plugins')
     def test_process_non_multi_part_cloud_config(self, mock_load_plugins):
-        data = b'#cloud-config'
+        data = '#cloud-config'
         mock_return_value = mock.sentinel.return_value
         mock_cloud_config_plugin = mock.Mock()
         mock_cloud_config_plugin.process.return_value = mock_return_value

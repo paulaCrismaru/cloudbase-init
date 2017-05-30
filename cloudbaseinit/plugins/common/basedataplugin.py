@@ -59,14 +59,12 @@ class BaseUserdataPlugin(base.BasePlugin):
             os.unlink(data_path)
 
         LOG.debug("Writing userdata to: %s", data_path)
-        with open(data_path, 'wb') as file:
-            file.write(data)
+        encoding.write_file(data_path, data, mode='wb')
 
     @staticmethod
     def _parse_mime(data):
-        data_str = encoding.get_as_string(data)
-        LOG.debug('Data content:\n%s', data_str)
-        return email.message_from_string(data_str).walk()
+        LOG.debug('Data content:\n%s', data)
+        return email.message_from_string(data).walk()
 
     @staticmethod
     def _get_headers(data):
@@ -77,9 +75,8 @@ class BaseUserdataPlugin(base.BasePlugin):
         .. note :: In case the content type is not valid,
                    None will be returned.
         """
-        content = encoding.get_as_string(data)
-        if content:
-            return content.split("\n\n")[0]
+        if data:
+            return data.split("\n\n")[0]
         else:
             raise exception.CloudbaseInitException("No header could be found."
                                                    "The user data content is "
@@ -173,13 +170,14 @@ class BaseUserdataPlugin(base.BasePlugin):
 
     def _process_non_multi_part(self, data):
         ret_val = None
-        if data.startswith(b'#cloud-config'):
+        if data.startswith('#cloud-config'):
             user_data_plugins = factory.load_plugins()
             cloud_config_plugin = user_data_plugins.get('text/cloud-config')
             ret_val = cloud_config_plugin.process_non_multipart(data)
-        elif data.strip().startswith(x509constants.PEM_HEADER.encode()):
+        elif data.strip().startswith(x509constants.PEM_HEADER):
             LOG.debug('Found X509 certificate in userdata')
         else:
-            ret_val = userdatautils.execute_user_data_script(data)
+            ret_val = userdatautils.execute_user_data_script(
+                data.encode())
 
         return execcmd.get_plugin_return_value(ret_val)
