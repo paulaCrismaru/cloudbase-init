@@ -22,6 +22,7 @@ from cloudbaseinit.plugins.common.userdataplugins import base
 from cloudbaseinit.plugins.common.userdataplugins.cloudconfigplugins import (
     factory
 )
+from cloudbaseinit.utils import encoding
 
 
 CONF = cloudbaseinit_conf.CONF
@@ -106,4 +107,7 @@ class CloudConfigPlugin(base.BaseUserDataPlugin):
 
     def process(self, part):
         payload = part.get_payload()
+        if (part.get_content_charset() == 'utf8' and
+                part.__getitem__('Content-Transfer-Encoding') == 'base64'):
+            payload = encoding.base64_to_string(payload)
         return self.process_non_multipart(payload)

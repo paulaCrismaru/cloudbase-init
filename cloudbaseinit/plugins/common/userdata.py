@@ -130,8 +130,12 @@ class UserDataPlugin(base.BasePlugin):
             if handler_func:
                 LOG.debug("Calling user part handler for content type: %s" %
                           content_type)
+                part_payload = part.get_payload()
+                if part.__getitem__('Content-Transfer-Encoding') == 'base64':
+                    if part.get_content_charset() == 'utf8':
+                        part_payload = encoding.base64_to_string(part_payload)
                 handler_func(None, content_type, part.get_filename(),
-                             part.get_payload())
+                             part_payload)
             else:
                 user_data_plugin = user_data_plugins.get(content_type)
                 if not user_data_plugin:

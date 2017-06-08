@@ -29,7 +29,11 @@ class PartHandlerPlugin(base.BaseUserDataPlugin):
     def process(self, part):
         temp_dir = tempfile.gettempdir()
         part_handler_path = os.path.join(temp_dir, part.get_filename())
-        encoding.write_file(part_handler_path, part.get_payload())
+        part_payload = part.get_payload()
+        if (part.get_content_charset() == 'utf8' and
+                part.__getitem__('Content-Transfer-Encoding') == 'base64'):
+            part_payload = encoding.base64_to_string(part_payload)
+        encoding.write_file(part_handler_path, part_payload)
 
         part_handler = classloader.ClassLoader().load_module(part_handler_path)
 

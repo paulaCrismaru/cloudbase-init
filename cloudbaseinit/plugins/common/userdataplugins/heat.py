@@ -39,8 +39,11 @@ class HeatPlugin(base.BaseUserDataPlugin):
     def process(self, part):
         file_name = os.path.join(CONF.heat_config_dir, part.get_filename())
         self._check_dir(file_name)
-
-        encoding.write_file(file_name, part.get_payload())
+        part_payload = part.get_payload()
+        if (part.get_content_charset() == 'utf8' and
+                part.__getitem__('Content-Transfer-Encoding') == 'base64'):
+            part_payload = encoding.base64_to_string(part_payload)
+        encoding.write_file(file_name, part_payload)
 
         if part.get_filename() == self._heat_user_data_filename:
             payload = part.get_payload()

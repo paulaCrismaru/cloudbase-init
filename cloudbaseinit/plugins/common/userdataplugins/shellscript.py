@@ -36,7 +36,11 @@ class ShellScriptPlugin(base.BaseUserDataPlugin):
         target_path = os.path.join(tempfile.gettempdir(), file_name)
 
         try:
-            encoding.write_file(target_path, part.get_payload())
+            part_payload = part.get_payload()
+            if (part.get_content_charset() == 'utf8' and
+                    part.__getitem__('Content-Transfer-Encoding') == 'base64'):
+                part_payload = encoding.base64_to_string(part_payload)
+            encoding.write_file(target_path, part_payload)
 
             return fileexecutils.exec_file(target_path)
         except Exception as ex:
