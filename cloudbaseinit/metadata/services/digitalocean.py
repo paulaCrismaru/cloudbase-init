@@ -59,7 +59,9 @@ class DigitalOceanService(base.BaseHTTPMetadataService):
 
     def get_public_keys(self):
         public_keys = self._get_meta_data().get("public_keys", [])
-        return list(set((key.strip() for key in public_keys)))
+        if public_keys:
+            return list(set((key.strip() for key in public_keys)))
+        return []
 
     def get_user_data(self):
         return self._get_cache_data('metadata/%s/user-data' %
