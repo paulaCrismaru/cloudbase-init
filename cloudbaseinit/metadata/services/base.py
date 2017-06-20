@@ -277,14 +277,17 @@ class BaseHTTPMetadataService(BaseMetadataService):
         else:
             return self._https_allow_insecure
 
-    def _http_request(self, url, data=None, headers=None):
+    def _http_request(self, url, data=None, headers=None, method='get'):
         """Get content for received url."""
         if not url.startswith("http"):
             url = requests.compat.urljoin(self._base_url, url)
         request_action = requests.get if not data else requests.post
-        if not data:
+
+        if not data and method.lower() == "get":
+            request_action = requests.get
             LOG.debug('Getting metadata from: %s', url)
         else:
+            request_action = requests.post
             LOG.debug('Posting data to %s', url)
 
         response = request_action(url=url, data=data, headers=headers,
