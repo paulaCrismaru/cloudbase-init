@@ -2587,3 +2587,50 @@ class TestWindowsUtils(testutils.CloudbaseInitTestBase):
         self._win32api_mock.GetFileVersionInfo.assert_called_once_with(
             mock_path, '\\')
         self.assertIsNotNone(res)
+
+    def test_set_primary_dns(self):
+        dns_primary_suffix = "fake suffix"
+        self.assertTrue(self._winutils.set_primary_dns(dns_primary_suffix))
+        self._kernel32.SetComputerNameExW.assert_called_once_with(
+            self._winutils.ComputerNamePhysicalDnsDomain,
+            six.text_type(dns_primary_suffix))
+
+    def test_set_primary_dns_fails(self):
+        dns_primary_suffix = "fake suffix"
+        self._kernel32.SetComputerNameExW.return_value = None
+        with self.assertRaises(exception.WindowsCloudbaseInitException):
+            self._winutils.set_primary_dns(dns_primary_suffix)
+        self._kernel32.SetComputerNameExW.assert_called_once_with(
+            self._winutils.ComputerNamePhysicalDnsDomain,
+            six.text_type(dns_primary_suffix))
+
+    def _test_get_host_name(self, fqdn=False, fails=False):
+        mock_hostname = mock.Mock()
+        hostname_length = self._wintypes_mock.DWORD(
+            self._ctypes_mock.sizeof(mock_hostname))
+        self._ctypes_mock.create_unicode_buffer.return_value = mock_hostname
+        if not fails:
+            self.assertEqual(
+                self._winutils.get_host_name(), mock_hostname.value)
+        else:
+            self._kernel32.GetComputerNameExW.return_value = None
+            with self.assertRaises(exception.WindowsCloudbaseInitException):
+                self._winutils.get_host_name()
+        self._wintypes_mock.DWORD.assert_called_with(
+            self._ctypes_mock.sizeof(mock_hostname))
+        computer_name_format = self._winutils.ComputerNamePhysicalDnsHostname
+        if fqdn:
+            computer_name_format = \
+                self._winutils.ComputerNamePhysicalDnsFullyQualified
+        self._kernel32.GetComputerNameExW(
+            computer_name_format, self._ctypes_mock.byref(mock_hostname),
+            self._ctypes_mock.byref(), hostname_length)
+
+    def test_get_host_name(self):
+        self._test_get_host_name()
+
+    def test_get_host_name_fqdn(self):
+        self._test_get_host_name(fqdn=True)
+
+    def test_get_host_name_exception(self):
+        self._test_get_host_name(fails=True)

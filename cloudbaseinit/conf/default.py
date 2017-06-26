@@ -230,6 +230,8 @@ class GlobalOptions(conf_base.Options):
                     'cloudbaseinit.plugins.common.userdataplugins.'
                     'cloudconfigplugins.set_hostname.SetHostnamePlugin',
                     'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.set_fqdn.SetFQDNPlugin',
+                    'cloudbaseinit.plugins.common.userdataplugins.'
                     'cloudconfigplugins.write_files.WriteFilesPlugin',
                     'cloudbaseinit.plugins.common.userdataplugins.'
                     'cloudconfigplugins.set_timezone.SetTimezonePlugin'],
