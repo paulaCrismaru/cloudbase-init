@@ -12,7 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import platform
 import re
 
 from oslo_log import log as oslo_logging
@@ -42,7 +41,9 @@ def set_hostname(osutils, hostname):
             required, False otherwise.
 
     """
-    hostname = hostname.split('.', 1)[0]
+    hostname_and_dns = hostname
+    hostname = hostname_and_dns.split('.', 1)[0]
+    primary_dns = '.'.join(hostname_and_dns.split('.', 1)[1:])
     if (len(hostname) > NETBIOS_HOST_NAME_MAX_LEN and
             CONF.netbios_host_name_compatibility):
             LOG.warn('Truncating host name for Netbios compatibility. '
@@ -52,11 +53,19 @@ def set_hostname(osutils, hostname):
                       'new_hostname': hostname[:NETBIOS_HOST_NAME_MAX_LEN]})
             hostname = hostname[:NETBIOS_HOST_NAME_MAX_LEN]
     hostname = re.sub(r'-$', '0', hostname)
-    if platform.node().lower() == hostname.lower():
+    if osutils.get_host_name().lower() == hostname.lower():
         LOG.debug("Hostname already set to: %s" % hostname)
         reboot_required = False
     else:
         LOG.info("Setting hostname: %s" % hostname)
         reboot_required = osutils.set_host_name(hostname)
 
+    current_fqdn = osutils.get_host_name(fqdn=True).lower()
+    if (current_fqdn == '.'.join([hostname, primary_dns]).lower() or
+       (not primary_dns)):
+        LOG.debug("FQDN already set to: '%s'" % primary_dns)
+    else:
+        LOG.info("Setting FQDN: %s" % primary_dns)
+        reboot_required = (osutils.set_primary_dns(primary_dns) or
+                           reboot_required)
     return hostname, reboot_required

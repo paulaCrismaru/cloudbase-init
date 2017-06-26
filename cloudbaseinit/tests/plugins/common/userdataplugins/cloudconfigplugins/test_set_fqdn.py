@@ -22,7 +22,7 @@ except ImportError:
 from oslo_config import cfg
 
 from cloudbaseinit.plugins.common.userdataplugins.cloudconfigplugins import (
-    set_hostname
+    set_fqdn
 )
 from cloudbaseinit.tests import testutils
 
@@ -30,23 +30,22 @@ from cloudbaseinit.tests import testutils
 CONF = cfg.CONF
 
 
-class Set_HostNamePluginPluginTest(unittest.TestCase):
+class TestSetFQDNPlugin(unittest.TestCase):
 
     def setUp(self):
-        self._sethost_name_plugin = set_hostname.SetHostnamePlugin()
+        self._setfqdn_plugin = set_fqdn.SetFQDNPlugin()
 
     @mock.patch('cloudbaseinit.utils.hostname')
     @mock.patch('cloudbaseinit.osutils.factory.get_os_utils')
     def test_process(self, mock_get_os_utils, mock_hostname):
-        mock_data = "fake_data"
-        mock_os_util = mock.MagicMock()
-        mock_os_util.set_hostname.return_value = (mock_data, True)
-        mock_get_os_utils.return_value = mock_os_util
+        mock_data = "fake_data.fqdn"
+        mock_hostname.set_hostname.return_value = (mock_data, True)
+        mock_get_os_utils.return_value = mock.MagicMock()
         with testutils.LogSnatcher(
             'cloudbaseinit.plugins.common.userdataplugins.'
                 'cloudconfigplugins.set_hostname') as snatcher:
-            result_process = self._sethost_name_plugin.process(mock_data)
-        self.assertTrue(result_process)
+            result_process = self._setfqdn_plugin.process(mock_data)
         self.assertEqual(
-            ["Changing hostname to %s" % mock_data],
+            ["Changing FQDN to %s" % mock_data],
             snatcher.output)
+        self.assertTrue(result_process)

@@ -29,18 +29,23 @@ CONF = cloudbaseinit_conf.CONF
 class HostnameUtilsTest(unittest.TestCase):
 
     @testutils.ConfPatcher('netbios_host_name_compatibility', True)
-    @mock.patch('platform.node')
-    def _test_set_hostname(self, mock_node, new_hostname='hostname',
+    def _test_set_hostname(self, new_hostname='hostname',
                            expected_new_hostname='hostname',
-                           hostname_already_set=False):
+                           hostname_already_set=False,
+                           set_fqdn=False):
         mock_osutils = mock.MagicMock()
         mock_osutils.set_host_name.return_value = True
 
         if hostname_already_set:
-            mock_node.return_value = expected_new_hostname
+            mock_osutils.get_host_name.return_value = expected_new_hostname
         else:
-            mock_node.return_value = 'fake_old_hostname'
-
+            mock_osutils.get_host_name.return_value = 'fake_old_hostname'
+        if set_fqdn:
+            mock_osutils.set_primary_dns.return_value = True
+            mock_osutils.get_host_name.side_effect = [
+                mock_osutils.get_host_name.return_value,
+                new_hostname
+            ]
         (new_hostname, reboot_required) = hostname.set_hostname(
             mock_osutils, new_hostname)
 
@@ -69,7 +74,8 @@ class HostnameUtilsTest(unittest.TestCase):
             'Truncating host name for Netbios compatibility. '
             'Old name: {0}, new name: {1}'.format(
                 new_hostname, expected_new_hostname),
-            'Setting hostname: xxxxxxxxxxxxxxx'
+            'Setting hostname: xxxxxxxxxxxxxxx',
+            "FQDN already set to: ''"
         ]
         self.assertEqual(expected, snatcher.output)
 
@@ -85,3 +91,20 @@ class HostnameUtilsTest(unittest.TestCase):
             hostname.NETBIOS_HOST_NAME_MAX_LEN - 1) + '0'
         self._test_set_hostname(new_hostname=new_hostname,
                                 expected_new_hostname=expected_new_hostname)
+
+    def test_execute_set_fqdn(self):
+        expected_new_hostname = "hostname"
+        fqdn = "fake.fqdn"
+        new_hostname = '.'.join([expected_new_hostname, fqdn])
+        with testutils.LogSnatcher('cloudbaseinit.utils.'
+                                   'hostname') as snatcher:
+            self._test_set_hostname(
+                set_fqdn=True,
+                new_hostname=new_hostname,
+                expected_new_hostname=expected_new_hostname)
+
+        expected = [
+            'Setting hostname: %s' % expected_new_hostname,
+            "FQDN already set to: '%s'" % fqdn
+        ]
+        self.assertEqual(expected, snatcher.output)

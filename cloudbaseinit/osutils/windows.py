@@ -394,6 +394,8 @@ class WindowsUtils(base.BaseOSUtils):
     }
 
     ComputerNamePhysicalDnsHostname = 5
+    ComputerNamePhysicalDnsDomain = 6
+    ComputerNamePhysicalDnsFullyQualified = 7
 
     _config_key = 'SOFTWARE\\Cloudbase Solutions\\Cloudbase-Init\\'
     _service_name = 'cloudbase-init'
@@ -669,6 +671,15 @@ class WindowsUtils(base.BaseOSUtils):
     def sanitize_shell_input(self, value):
         return value.replace('"', '\\"')
 
+    def set_primary_dns(self, dns_primary_suffix):
+        ret_val = kernel32.SetComputerNameExW(
+            self.ComputerNamePhysicalDnsDomain,
+            six.text_type(dns_primary_suffix))
+        if not ret_val:
+            raise exception.WindowsCloudbaseInitException(
+                "Cannot set dns primary suffix: %r")
+        return True
+
     def set_host_name(self, new_host_name):
         ret_val = kernel32.SetComputerNameExW(
             self.ComputerNamePhysicalDnsHostname,
@@ -677,6 +688,21 @@ class WindowsUtils(base.BaseOSUtils):
             raise exception.WindowsCloudbaseInitException(
                 "Cannot set host name: %r")
         return True
+
+    def get_host_name(self, fqdn=False):
+        computer_name_format = self.ComputerNamePhysicalDnsHostname
+        max_hostname_size = 261
+        hostname = ctypes.create_unicode_buffer(max_hostname_size)
+        hostname_length = wintypes.DWORD(ctypes.sizeof(hostname))
+        if fqdn:
+            computer_name_format = self.ComputerNamePhysicalDnsFullyQualified
+        ret_val = kernel32.GetComputerNameExW(
+            computer_name_format, ctypes.byref(hostname),
+            ctypes.byref(hostname_length))
+        if not ret_val:
+            raise exception.WindowsCloudbaseInitException(
+                "Cannot get host name: %r")
+        return hostname.value
 
     def get_network_adapters(self):
         """Return available adapters as a list of tuples of (name, mac)."""

@@ -1,4 +1,4 @@
-# Copyright 2015 Cloudbase Solutions Srl
+# Copyright 2017 Cloudbase Solutions Srl
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -14,32 +14,19 @@
 
 from oslo_log import log as oslo_logging
 
-from cloudbaseinit.osutils import factory
 from cloudbaseinit.plugins.common.userdataplugins.cloudconfigplugins import (
-    base
+    set_hostname
 )
-from cloudbaseinit.utils import hostname
 
 
 LOG = oslo_logging.getLogger(__name__)
 
 
-class SetHostnamePlugin(base.BaseCloudConfigPlugin):
-    """Change the hostname for the underlying platform.
+class SetFQDNPlugin(set_hostname.SetHostnamePlugin):
+    """Setting the FQDN for the underlying platform.
 
-    If the hostname is changed a restart will be required.
-
-    To change the hostname to 'myhostname', use this syntax:
-
-        hostname: myhostname
+    If the FQDN is changed a restart will be required.
 
     """
     def __init__(self):
-        self._target = "hostname"
-
-    def process(self, data):
-        LOG.info("Changing %(target)s to %(data)s",
-                 {"target": self._target, "data": data})
-        osutils = factory.get_os_utils()
-        _, reboot_required = hostname.set_hostname(osutils, data)
-        return reboot_required
+        self._target = "FQDN"
