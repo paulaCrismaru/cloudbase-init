@@ -24,3 +24,7 @@ class BaseCloudConfigPlugin(object):
     @abc.abstractmethod
     def process(self, data):
         """Abstract method for processing the given data."""
+
+    @classmethod
+    def should_execute(cls, data):
+        return True

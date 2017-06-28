@@ -30,3 +30,7 @@ class SetFQDNPlugin(set_hostname.SetHostnamePlugin):
     """
     def __init__(self):
         self._target = "FQDN"
+
+    @classmethod
+    def should_execute(cls, data):
+        return not data.get("preserve_hostname", False)

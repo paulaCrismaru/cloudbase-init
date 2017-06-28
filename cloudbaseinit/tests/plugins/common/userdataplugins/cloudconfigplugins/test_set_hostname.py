@@ -50,3 +50,21 @@ class Set_HostNamePluginPluginTest(unittest.TestCase):
         self.assertEqual(
             ["Changing hostname to %s" % mock_data],
             snatcher.output)
+
+    def test_should_execute(self):
+        self.assertTrue(
+            self._sethost_name_plugin.should_execute(
+                {"fake plugin": "fake data"}))
+
+    def test_should_execute_fqdn(self):
+        self.assertFalse(
+            self._sethost_name_plugin.should_execute(
+                {"fake plugin": "fake data",
+                 "fqdn": "fake fqdn"}))
+
+    def test_should_not_execute_fqdn_preserve_hostname(self):
+        self.assertFalse(
+            self._sethost_name_plugin.should_execute(
+                {"fake plugin": "fake data",
+                 "fqdn": "fake fqdn",
+                 "preserve_hostname": True}))

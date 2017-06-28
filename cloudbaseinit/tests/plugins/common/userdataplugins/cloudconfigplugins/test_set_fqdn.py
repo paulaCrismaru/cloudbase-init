@@ -49,3 +49,11 @@ class TestSetFQDNPlugin(unittest.TestCase):
             ["Changing FQDN to %s" % mock_data],
             snatcher.output)
         self.assertTrue(result_process)
+
+    def test_should_execute(self):
+        self.assertTrue(self._setfqdn_plugin.should_execute(
+            {"fake plugin": "fake data"}))
+
+    def test_should_not_execute(self):
+        self.assertFalse(self._setfqdn_plugin.should_execute(
+            {'preserve_hostname': True}))

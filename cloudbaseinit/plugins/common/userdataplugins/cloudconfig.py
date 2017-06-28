@@ -49,6 +49,14 @@ class CloudConfigPluginExecutor(object):
                 # list, then default to a sane and unreachable value.
                 return DEFAULT_ORDER_VALUE
 
+        self._plugins = factory.load_plugins()
+        for plugin_name in list(plugins):
+            if (self._plugins.get(plugin_name) and
+               not self._plugins[plugin_name].should_execute(plugins)):
+                LOG.warning("Plugin %s will not be executed due to its lower "
+                            "priority compared to the other given plugins",
+                            plugin_name)
+                plugins.pop(plugin_name)
         self._expected_plugins = sorted(
             plugins.items(),
             key=lambda item: _lookup_priority(item[0]))
@@ -69,15 +77,14 @@ class CloudConfigPluginExecutor(object):
     def execute(self):
         """Call each plugin, in the order requested by the user."""
         reboot = execcmd.NO_REBOOT
-        plugins = factory.load_plugins()
         for plugin_name, value in self._expected_plugins:
-            method = plugins.get(plugin_name)
-            if not method:
+            plugin = self._plugins.get(plugin_name)
+            if not plugin or not plugin.process:
                 LOG.error("Plugin %r is currently not supported", plugin_name)
                 continue
 
             try:
-                requires_reboot = method(value)
+                requires_reboot = plugin.process(value)
                 if requires_reboot:
                     reboot = execcmd.RET_END
             except Exception:

@@ -35,5 +35,5 @@ PLUGINS = {
 
 def load_plugins():
     loader = classloader.ClassLoader()
-    return {section: loader.load_class(class_path)().process
+    return {section: loader.load_class(class_path)()
             for section, class_path in PLUGINS.items()}

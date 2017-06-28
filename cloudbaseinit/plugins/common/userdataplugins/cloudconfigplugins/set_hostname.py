@@ -43,3 +43,8 @@ class SetHostnamePlugin(base.BaseCloudConfigPlugin):
         osutils = factory.get_os_utils()
         _, reboot_required = hostname.set_hostname(osutils, data)
         return reboot_required
+
+    @classmethod
+    def should_execute(cls, data):
+        return not ("fqdn" in data or
+                    data.get("preserve_hostname", False))
