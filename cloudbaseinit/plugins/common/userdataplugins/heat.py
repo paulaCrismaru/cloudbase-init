@@ -36,7 +36,7 @@ class HeatPlugin(base.BaseUserDataPlugin):
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
 
-    def process(self, part):
+    def process(self, part, service=None):
         file_name = os.path.join(CONF.heat_config_dir, part.get_filename())
         self._check_dir(file_name)
 

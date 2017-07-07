@@ -22,9 +22,27 @@ class BaseCloudConfigPlugin(object):
     """Base plugin class for cloud-config plugins."""
 
     @abc.abstractmethod
-    def process(self, data):
+    def _execute(self, part, service=None):
         """Abstract method for processing the given data."""
 
-    @classmethod
-    def should_execute(cls, data):
-        return True
+    @property
+    def keys(cls):
+        return cls._keys
+
+    def _get_used_key(self, part):
+        if type(part) is not dict:
+            pass
+        elif type(self.keys) is not list and part.get(self.keys):
+            return self.keys
+        else:
+            for key in self.keys:
+                if part.get(key):
+                    return key
+        return None
+
+    def execute(self, part, service=None):
+        reboot_required = False
+        plugin_key = self._get_used_key(part)
+        if plugin_key:
+            reboot_required = self._execute(part, service)
+        return reboot_required

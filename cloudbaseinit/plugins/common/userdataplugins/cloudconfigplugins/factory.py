@@ -12,28 +12,16 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+from cloudbaseinit import conf as cloudbaseinit_conf
 from cloudbaseinit.utils import classloader
 
-
-# TODO(cpopa): replace the static list of plugins with something
-# discovered at runtime.
-PLUGINS = {
-    'write_files': 'cloudbaseinit.plugins.common.userdataplugins.'
-                   'cloudconfigplugins.write_files.WriteFilesPlugin',
-    'set_timezone': 'cloudbaseinit.plugins.common.userdataplugins.'
-                    'cloudconfigplugins.set_timezone.SetTimezonePlugin',
-    'timezone': 'cloudbaseinit.plugins.common.userdataplugins.'
-                'cloudconfigplugins.set_timezone.SetTimezonePlugin',
-    'set_hostname': 'cloudbaseinit.plugins.common.userdataplugins.'
-                    'cloudconfigplugins.set_hostname.SetHostnamePlugin',
-    'hostname': 'cloudbaseinit.plugins.common.userdataplugins.'
-                'cloudconfigplugins.set_hostname.SetHostnamePlugin',
-    'fqdn': 'cloudbaseinit.plugins.common.userdataplugins.'
-            'cloudconfigplugins.set_fqdn.SetFQDNPlugin',
-}
+CONF = cloudbaseinit_conf.CONF
 
 
 def load_plugins():
-    loader = classloader.ClassLoader()
-    return {section: loader.load_class(class_path)()
-            for section, class_path in PLUGINS.items()}
+    plugins = []
+    cl = classloader.ClassLoader()
+    for class_path in CONF.cloud_config_plugins:
+        plugin = cl.load_class(class_path)()
+        plugins.append(plugin)
+    return plugins

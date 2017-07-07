@@ -28,9 +28,7 @@ class SetFQDNPlugin(set_hostname.SetHostnamePlugin):
     If the FQDN is changed a restart will be required.
 
     """
-    def __init__(self):
-        self._target = "FQDN"
+    _keys = ["fqdn"]
 
-    @classmethod
-    def should_execute(cls, data):
-        return not data.get("preserve_hostname", False)
+    def _conflicts(self, part):
+        return part.get("preserve_hostname")

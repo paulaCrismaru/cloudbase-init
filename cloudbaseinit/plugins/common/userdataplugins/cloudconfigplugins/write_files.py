@@ -131,6 +131,7 @@ class WriteFilesPlugin(base.BaseCloudConfigPlugin):
 
     The only required keys in this dictionary are `path` and `content`.
     """
+    _keys = ["write_files"]
 
     def _process_item(self, item):
         if not {'path', 'content'}.issubset(set(item)):
@@ -144,12 +145,13 @@ class WriteFilesPlugin(base.BaseCloudConfigPlugin):
         permissions = _convert_permissions(item.get('permissions'))
         _write_file(path, content, permissions)
 
-    def process(self, data):
+    def _execute(self, part, service=None):
         """Process the given data received from the cloud-config userdata.
 
         It knows to process only lists and dicts.
         """
-
+        plugin_key = self._get_used_key(part)
+        data = part.get(plugin_key)
         if not isinstance(data, (list, dict)):
             raise exception.CloudbaseInitException(
                 "Can't process the type of data %r" % type(data))

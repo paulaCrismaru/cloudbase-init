@@ -34,17 +34,23 @@ class SetHostnamePlugin(base.BaseCloudConfigPlugin):
         hostname: myhostname
 
     """
-    def __init__(self):
-        self._target = "hostname"
 
-    def process(self, data):
-        LOG.info("Changing %(target)s to %(data)s",
-                 {"target": self._target, "data": data})
-        osutils = factory.get_os_utils()
-        _, reboot_required = hostname.set_hostname(osutils, data)
+    _keys = ["hostname", "set_hostname"]
+
+    def _execute(self, part, service=None):
+        reboot_required = False
+        plugin_key = self._get_used_key(part)
+        data = part.get(plugin_key)
+        if not self._conflicts(part):
+            LOG.info("Changing %(target)s to %(data)s",
+                     {"target": self.keys[0], "data": data})
+            osutils = factory.get_os_utils()
+            _, reboot_required = hostname.set_hostname(osutils, data)
+        else:
+            LOG.warning("Plugin %s will not be executed due to its lower "
+                        "priority compared to the other given plugins",
+                        plugin_key)
         return reboot_required
 
-    @classmethod
-    def should_execute(cls, data):
-        return not ("fqdn" in data or
-                    data.get("preserve_hostname", False))
+    def _conflicts(self, part):
+        return part.get("preserve_hostname") or part.get("fqdn")

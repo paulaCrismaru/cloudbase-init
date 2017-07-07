@@ -53,7 +53,7 @@ class UserDataPlugin(base.BasePlugin):
             self._write_userdata(user_data, user_data_path)
 
         if CONF.process_userdata:
-            return self._process_user_data(user_data)
+            return self._process_user_data(user_data, service)
         return base.PLUGIN_EXECUTION_DONE, False
 
     @staticmethod
@@ -100,7 +100,7 @@ class UserDataPlugin(base.BasePlugin):
                                                    "The user data content is "
                                                    "either invalid or empty.")
 
-    def _process_user_data(self, user_data):
+    def _process_user_data(self, user_data, service=None):
         plugin_status = base.PLUGIN_EXECUTION_DONE
         reboot = False
         headers = self._get_headers(user_data)
@@ -112,7 +112,8 @@ class UserDataPlugin(base.BasePlugin):
             for part in self._parse_mime(user_data):
                 (plugin_status, reboot) = self._process_part(part,
                                                              user_data_plugins,
-                                                             user_handlers)
+                                                             user_handlers,
+                                                             service)
                 if reboot:
                     break
 
@@ -124,7 +125,8 @@ class UserDataPlugin(base.BasePlugin):
         else:
             return self._process_non_multi_part(user_data)
 
-    def _process_part(self, part, user_data_plugins, user_handlers):
+    def _process_part(self, part, user_data_plugins, user_handlers,
+                      service=None):
         ret_val = None
         try:
             content_type = part.get_content_type()
@@ -145,12 +147,12 @@ class UserDataPlugin(base.BasePlugin):
                               user_data_plugin.__class__.__name__)
 
                     if content_type == self._PART_HANDLER_CONTENT_TYPE:
-                        new_user_handlers = user_data_plugin.process(part)
+                        new_user_handlers = user_data_plugin.process(part, service)
                         self._add_part_handlers(user_data_plugins,
                                                 user_handlers,
                                                 new_user_handlers)
                     else:
-                        ret_val = user_data_plugin.process(part)
+                        ret_val = user_data_plugin.process(part, service)
         except Exception as ex:
             LOG.error('Exception during multipart part handling: '
                       '%(content_type)s, %(filename)s' %

@@ -222,7 +222,15 @@ class GlobalOptions(conf_base.Options):
                 ],
                 help='List of enabled userdata content plugins'),
             cfg.ListOpt(
-                'cloud_config_plugins', default=[],
+                'cloud_config_plugins', default=[
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.set_hostname.SetHostnamePlugin',
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.set_timezone.SetTimezonePlugin',
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.write_files.WriteFilesPlugin',
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.set_fqdn.SetFQDNPlugin'],
                 help='List which contains the name of the cloud config '
                      'plugins ordered by priority.'),
             cfg.BoolOpt(

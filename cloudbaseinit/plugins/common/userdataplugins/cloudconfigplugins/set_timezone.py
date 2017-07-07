@@ -36,8 +36,11 @@ class SetTimezonePlugin(base.BaseCloudConfigPlugin):
         timezone: America/Montevideo
 
     """
+    _keys = ["set_timezone", "timezone"]
 
-    def process(self, data):
+    def _execute(self, part, service=None):
+        plugin_key = self._get_used_key(part)
+        data = part.get(plugin_key)
         LOG.info("Changing timezone to %r", data)
         osutils = factory.get_os_utils()
         osutils.set_timezone(data)

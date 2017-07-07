@@ -26,7 +26,7 @@ class PartHandlerPlugin(base.BaseUserDataPlugin):
     def __init__(self):
         super(PartHandlerPlugin, self).__init__("text/part-handler")
 
-    def process(self, part):
+    def process(self, part, service=None):
         temp_dir = tempfile.gettempdir()
         part_handler_path = os.path.join(temp_dir, part.get_filename())
         encoding.write_file(part_handler_path, part.get_payload(decode=True))
