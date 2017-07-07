@@ -26,63 +26,10 @@ from cloudbaseinit.plugins.common.userdataplugins.cloudconfigplugins import (
 
 CONF = cloudbaseinit_conf.CONF
 LOG = oslo_logging.getLogger(__name__)
-DEFAULT_ORDER_VALUE = 999
 
 
 class CloudConfigError(Exception):
     pass
-
-
-class CloudConfigPluginExecutor(object):
-    """A simple executor class for processing cloud-config plugins.
-
-    :kwarg plugins:
-        Pairs of plugin names and the values corresponding to that plugin.
-    """
-
-    def __init__(self, **plugins):
-        def _lookup_priority(plugin):
-            try:
-                return CONF.cloud_config_plugins.index(plugin)
-            except ValueError:
-                # If the plugin was not specified in the order
-                # list, then default to a sane and unreachable value.
-                return DEFAULT_ORDER_VALUE
-
-        self._expected_plugins = sorted(
-            plugins.items(),
-            key=lambda item: _lookup_priority(item[0]))
-
-    @classmethod
-    def from_yaml(cls, stream):
-        """Initialize an executor from an yaml stream."""
-
-        loader = getattr(yaml, 'CLoader', yaml.Loader)
-        try:
-            content = yaml.load(stream, Loader=loader)
-        except (TypeError, ValueError, AttributeError):
-            raise CloudConfigError("Invalid yaml stream provided.")
-        if not content:
-            raise CloudConfigError("Empty yaml stream provided.")
-        return cls(**content)
-
-    def execute(self):
-        """Call each plugin, in the order requested by the user."""
-        reboot = execcmd.NO_REBOOT
-        plugins = factory.load_plugins()
-        for plugin_name, value in self._expected_plugins:
-            method = plugins.get(plugin_name)
-            if not method:
-                LOG.error("Plugin %r is currently not supported", plugin_name)
-                continue
-
-            try:
-                requires_reboot = method(value)
-                if requires_reboot:
-                    reboot = execcmd.RET_END
-            except Exception:
-                LOG.exception("Processing plugin %s failed", plugin_name)
-        return reboot
 
 
 class CloudConfigPlugin(base.BaseUserDataPlugin):
@@ -90,20 +37,39 @@ class CloudConfigPlugin(base.BaseUserDataPlugin):
     def __init__(self):
         super(CloudConfigPlugin, self).__init__("text/cloud-config")
 
-    def process_non_multipart(self, part):
+    def process(self, part, service):
         """Process the given data, if it can be loaded through yaml.
 
         If any plugin requires a reboot, it will return a particular
         value, which will be processed on a higher level.
         """
+        part = part.get_payload(decode=True)
+        plugins = factory.load_plugins()
+        content = None
+        reboot = execcmd.NO_REBOOT
         try:
-            executor = CloudConfigPluginExecutor.from_yaml(part)
+            content = self.from_yaml(part)
         except CloudConfigError as ex:
             LOG.error('Could not process part type %(type)r: %(err)r',
                       {'type': type(part), 'err': str(ex)})
         else:
-            return executor.execute()
+            for plugin in plugins:
+                try:
+                    requires_reboot = plugin.execute(content, service)
+                    if requires_reboot:
+                        reboot = execcmd.RET_END
+                        break
+                except Exception:
+                    plugin_name = plugin._get_used_key(content)
+                    LOG.exception("Processing plugin %s failed", plugin_name)
+        return reboot
 
-    def process(self, part):
-        payload = part.get_payload(decode=True)
-        return self.process_non_multipart(payload)
+    def from_yaml(self, stream):
+        loader = getattr(yaml, 'CLoader', yaml.Loader)
+        try:
+            content = yaml.load(stream, Loader=loader)
+        except (TypeError, ValueError, AttributeError):
+            raise CloudConfigError("Invalid yaml stream provided.")
+        if not content:
+            raise CloudConfigError("Empty yaml stream provided.")
+        return content

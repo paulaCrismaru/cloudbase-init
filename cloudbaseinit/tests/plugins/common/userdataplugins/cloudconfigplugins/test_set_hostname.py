@@ -41,5 +41,6 @@ class Set_HostNamePluginPluginTest(unittest.TestCase):
         mock_os_util = mock.MagicMock()
         mock_os_util.set_hostname.return_value = (mock_data, True)
         mock_get_os_utils.return_value = mock_os_util
-        result_process = self._sethost_name_plugin.process(mock_data)
+        result_process = self._sethost_name_plugin.execute(
+            {"hostname": mock_data}, None)
         self.assertTrue(result_process)

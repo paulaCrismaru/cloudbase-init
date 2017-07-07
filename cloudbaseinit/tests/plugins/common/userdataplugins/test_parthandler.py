@@ -40,7 +40,7 @@ class PartHandlerPluginTests(unittest.TestCase):
         mock_load_module.return_value = mock_part_handler
         mock_part_handler.list_types.return_value = ['fake part']
 
-        response = self._parthandler.process(mock_part)
+        response = self._parthandler.process(mock_part, None)
 
         mock_part.get_filename.assert_called_once_with()
         part_handler_path = os.path.join(mock_gettempdir.return_value,

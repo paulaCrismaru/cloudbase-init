@@ -57,7 +57,7 @@ class ShellScriptPluginTests(unittest.TestCase):
             with testutils.LogSnatcher('cloudbaseinit.plugins.common.'
                                        'userdataplugins.'
                                        'shellscript') as snatcher:
-                response = self._shellscript.process(mock_part)
+                response = self._shellscript.process(mock_part, None)
 
         mock_part.get_filename.assert_called_once_with()
         mock_write_file.assert_called_once_with(

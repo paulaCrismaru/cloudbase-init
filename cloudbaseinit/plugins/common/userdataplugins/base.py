@@ -27,5 +27,5 @@ class BaseUserDataPlugin(object):
         return self._mime_type
 
     @abc.abstractmethod
-    def process(self, part):
+    def process(self, part, service):
         pass

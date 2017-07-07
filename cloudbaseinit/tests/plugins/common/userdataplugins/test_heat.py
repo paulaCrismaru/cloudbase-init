@@ -59,7 +59,7 @@ class HeatUserDataHandlerTests(unittest.TestCase):
         mock_part.get_filename.return_value = filename
         if payloads is True and sys.version_info < (3, 0):
             mock_part.get_payload.return_value = filename.decode()
-        response = self._heat.process(mock_part)
+        response = self._heat.process(mock_part, None)
 
         path = os.path.join(CONF.heat_config_dir, filename)
         mock_check_dir.assert_called_once_with(path)

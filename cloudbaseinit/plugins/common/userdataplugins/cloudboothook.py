@@ -25,6 +25,6 @@ class CloudBootHookPlugin(base.BaseUserDataPlugin):
     def __init__(self):
         super(CloudBootHookPlugin, self).__init__("text/cloud-boothook")
 
-    def process(self, part):
+    def process(self, part, service):
         LOG.info("%s content is currently not supported" %
                  self.get_mime_type())

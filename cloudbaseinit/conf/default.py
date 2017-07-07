@@ -225,6 +225,16 @@ class GlobalOptions(conf_base.Options):
                 'cloud_config_plugins', default=[],
                 help='List which contains the name of the cloud config '
                      'plugins ordered by priority.'),
+            cfg.ListOpt(
+                'cloud_config_plugins_list', default=[
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.set_hostname.SetHostnamePlugin',
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.write_files.WriteFilesPlugin',
+                    'cloudbaseinit.plugins.common.userdataplugins.'
+                    'cloudconfigplugins.set_timezone.SetTimezonePlugin'],
+                help='List which contains the name of the cloud config '
+                     'plugins'),
             cfg.BoolOpt(
                 'rdp_set_keepalive', default=True,
                 help='Sets the RDP KeepAlive policy'),

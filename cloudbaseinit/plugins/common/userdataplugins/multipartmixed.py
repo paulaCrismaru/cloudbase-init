@@ -20,5 +20,5 @@ class MultipartMixedPlugin(base.BaseUserDataPlugin):
     def __init__(self):
         super(MultipartMixedPlugin, self).__init__("multipart/mixed")
 
-    def process(self, part):
+    def process(self, part, service):
         pass

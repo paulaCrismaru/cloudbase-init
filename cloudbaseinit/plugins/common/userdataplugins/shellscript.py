@@ -31,7 +31,7 @@ class ShellScriptPlugin(base.BaseUserDataPlugin):
     def __init__(self):
         super(ShellScriptPlugin, self).__init__("text/x-shellscript")
 
-    def process(self, part):
+    def process(self, part, service):
         file_name = part.get_filename()
         target_path = os.path.join(tempfile.gettempdir(), file_name)
 

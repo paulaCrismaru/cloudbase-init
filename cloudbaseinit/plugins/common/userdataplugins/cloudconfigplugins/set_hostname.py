@@ -35,7 +35,11 @@ class SetHostnamePlugin(base.BaseCloudConfigPlugin):
 
     """
 
-    def process(self, data):
+    _keys = ["hostname", "set_hostname"]
+
+    def _execute(self, part, service):
+        plugin_key = self._get_used_key(part)
+        data = part.get(plugin_key)
         LOG.info("Changing hostname to %r", data)
         osutils = factory.get_os_utils()
         _, reboot_required = hostname.set_hostname(osutils, data)

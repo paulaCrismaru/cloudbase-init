@@ -31,5 +31,5 @@ class CloudBootHookPluginTests(unittest.TestCase):
                 '.BaseUserDataPlugin.get_mime_type')
     def test_process(self, mock_get_mime_type):
         mock_part = mock.MagicMock()
-        self._cloud_hook.process(mock_part)
+        self._cloud_hook.process(mock_part, None)
         mock_get_mime_type.assert_called_once_with()
