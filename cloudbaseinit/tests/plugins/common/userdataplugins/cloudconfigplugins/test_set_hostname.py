@@ -45,26 +45,16 @@ class Set_HostNamePluginPluginTest(unittest.TestCase):
         with testutils.LogSnatcher(
             'cloudbaseinit.plugins.common.userdataplugins.'
                 'cloudconfigplugins.set_hostname') as snatcher:
-            result_process = self._sethost_name_plugin.process(mock_data)
+            result_process = self._sethost_name_plugin.execute(
+                {"hostname": mock_data})
         self.assertTrue(result_process)
         self.assertEqual(
             ["Changing hostname to %s" % mock_data],
             snatcher.output)
 
-    def test_should_execute(self):
+    def test_conflicts(self):
         self.assertTrue(
-            self._sethost_name_plugin.should_execute(
-                {"fake plugin": "fake data"}))
-
-    def test_should_execute_fqdn(self):
-        self.assertFalse(
-            self._sethost_name_plugin.should_execute(
-                {"fake plugin": "fake data",
-                 "fqdn": "fake fqdn"}))
-
-    def test_should_not_execute_fqdn_preserve_hostname(self):
-        self.assertFalse(
-            self._sethost_name_plugin.should_execute(
+            self._sethost_name_plugin._conflicts(
                 {"fake plugin": "fake data",
                  "fqdn": "fake fqdn",
                  "preserve_hostname": True}))

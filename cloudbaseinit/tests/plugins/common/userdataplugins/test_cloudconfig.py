@@ -31,46 +31,10 @@ class CloudConfigPluginTests(unittest.TestCase):
     def setUpClass(cls):
         cls.plugin = cloudconfig.CloudConfigPlugin()
 
-    def _test_priority(self, fqdn=False):
-        orig = CONF.cloud_config_plugins
-        CONF.cloud_config_plugins = ['write_file', 'dummy', 'dummy1']
-        if fqdn:
-            CONF.cloud_config_plugins.extend(["fqdn", "set_hostname"])
-        expected = [
-            ('write_file', 0),
-            ('dummy', 1),
-            ('dummy1', 2),
-            ('invalid', 3),
-        ]
-        args = {
-            "dummy": 1,
-            "dummy1": 2,
-            "invalid": 3,
-            "write_file": 0
-        }
-        if fqdn:
-            expected.insert(3, ("fqdn", 5))
-            args["fqdn"] = 5
-            args["set_hostname"] = 4
-        try:
-            executor = cloudconfig.CloudConfigPluginExecutor(**args)
-            self.assertEqual(expected, executor._expected_plugins)
-        finally:
-            CONF.cloud_config_plugins = orig
-
-    def test_priority(self):
-        self._test_priority()
-
-    def test_priority_fqdn_hostname(self):
-        self._test_priority(fqdn=True)
-
-    def test_executor_from_yaml(self):
+    def test_from_yaml(self):
         for invalid in (mock.sentinel.yaml, None, 1, int, '{}'):
             with self.assertRaises(cloudconfig.CloudConfigError):
-                cloudconfig.CloudConfigPluginExecutor.from_yaml(invalid)
-
-        executor = cloudconfig.CloudConfigPluginExecutor.from_yaml('{f: 1}')
-        self.assertIsInstance(executor, cloudconfig.CloudConfigPluginExecutor)
+                self.plugin.from_yaml(invalid)
 
     def _test_invalid_type(self, part, err_msg):
         with testutils.LogSnatcher('cloudbaseinit.plugins.common.'

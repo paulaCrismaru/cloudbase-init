@@ -31,10 +31,11 @@ class TestSetTimezone(unittest.TestCase):
     @mock.patch('cloudbaseinit.plugins.common.userdataplugins.'
                 'cloudconfigplugins.set_timezone.factory')
     def test_process(self, mock_osutils_factory):
+        part = {"set_timezone": mock.sentinel.timezone}
         with testutils.LogSnatcher('cloudbaseinit.plugins.common.'
                                    'userdataplugins.cloudconfigplugins.'
                                    'set_timezone') as snatcher:
-            set_timezone.SetTimezonePlugin().process(mock.sentinel.timezone)
+            set_timezone.SetTimezonePlugin().execute(part)
 
         expected_logging = [
             'Changing timezone to %r' % mock.sentinel.timezone
@@ -46,9 +47,10 @@ class TestSetTimezone(unittest.TestCase):
         self.assertEqual(expected_logging, snatcher.output)
 
     @mock.patch('cloudbaseinit.plugins.common.userdataplugins.'
-                'cloudconfigplugins.set_timezone.SetTimezonePlugin.process')
-    def test_timezone_dispatch(self, mock_process_plugin):
+                'cloudconfigplugins.set_timezone.SetTimezonePlugin.execute')
+    def test_timezone_dispatch(self, mock_execute_plugin):
         plugin = cloudconfig.CloudConfigPlugin()
         plugin.process_non_multipart("set_timezone: America Standard Time")
 
-        mock_process_plugin.assert_called_once_with("America Standard Time")
+        mock_execute_plugin.assert_called_once_with(
+            {"set_timezone": "America Standard Time"}, None)

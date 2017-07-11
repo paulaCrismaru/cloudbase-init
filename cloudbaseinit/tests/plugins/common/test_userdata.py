@@ -169,7 +169,8 @@ class UserDataPluginTest(unittest.TestCase):
             mock_load_plugins.assert_called_once_with()
             mock_parse_mime.assert_called_once_with(user_data)
             mock_process_part.assert_called_once_with(mock_part,
-                                                      mock_load_plugins(), {})
+                                                      mock_load_plugins(), {},
+                                                      None)
             self.assertEqual((base.PLUGIN_EXECUTION_DONE, reboot), response)
         else:
             mock_process_non_multi_part.assert_called_once_with(user_data)
@@ -223,7 +224,7 @@ class UserDataPluginTest(unittest.TestCase):
         else:
             mock_user_data_plugins.get.assert_called_once_with(_content_type)
             if user_data_plugin and content_type:
-                user_data_plugin.process.assert_called_with(mock_part)
+                user_data_plugin.process.assert_called_with(mock_part, None)
                 mock_add_part_handlers.assert_called_with(
                     mock_user_data_plugins, mock_user_handlers,
                     user_data_plugin.process())

@@ -101,21 +101,6 @@ class WriteFilesPluginTests(unittest.TestCase):
         result = write_files._write_file(u'fake_path', u'fake_content')
         self.assertFalse(result)
 
-    def test_write_file_list(self):
-        expected_logging = [
-            "Plugin 'invalid' is currently not supported",
-        ]
-        code = textwrap.dedent("""
-        write_files:
-        -   encoding: b64
-            content: NDI=
-            path: {}
-            permissions: '0o466'
-        invalid:
-        - stuff: 1
-        """)
-        self._test_write_file(code, expected_logging)
-
     def test_write_file_dict(self):
         code = textwrap.dedent("""
         write_files:
@@ -168,7 +153,7 @@ class WriteFilesPluginTests(unittest.TestCase):
         self.assertEqual(expected_return, snatcher.output)
 
     @mock.patch('cloudbaseinit.plugins.common.userdataplugins.'
-                'cloudconfigplugins.write_files.WriteFilesPlugin.process')
+                'cloudconfigplugins.write_files.WriteFilesPlugin.execute')
     def test_processing_plugin_failed(self, mock_write_files):
         mock_write_files.side_effect = ValueError
         code = textwrap.dedent("""
@@ -240,8 +225,9 @@ class WriteFilesPluginTests(unittest.TestCase):
                          snatcher.output)
 
     def test_invalid_object_passed(self):
+        part = {'write_files': 1}
         with self.assertRaises(exception.CloudbaseInitException) as cm:
-            write_files.WriteFilesPlugin().process(1)
+            write_files.WriteFilesPlugin().execute(part)
 
         expected = "Can't process the type of data %r" % type(1)
         self.assertEqual(expected, str(cm.exception))

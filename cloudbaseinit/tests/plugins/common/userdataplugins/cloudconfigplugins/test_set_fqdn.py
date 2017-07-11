@@ -44,16 +44,9 @@ class TestSetFQDNPlugin(unittest.TestCase):
         with testutils.LogSnatcher(
             'cloudbaseinit.plugins.common.userdataplugins.'
                 'cloudconfigplugins.set_hostname') as snatcher:
-            result_process = self._setfqdn_plugin.process(mock_data)
+            result_process = self._setfqdn_plugin.execute(
+                {"fqdn": mock_data})
         self.assertEqual(
-            ["Changing FQDN to %s" % mock_data],
+            ["Changing fqdn to %s" % mock_data],
             snatcher.output)
         self.assertTrue(result_process)
-
-    def test_should_execute(self):
-        self.assertTrue(self._setfqdn_plugin.should_execute(
-            {"fake plugin": "fake data"}))
-
-    def test_should_not_execute(self):
-        self.assertFalse(self._setfqdn_plugin.should_execute(
-            {'preserve_hostname': True}))
