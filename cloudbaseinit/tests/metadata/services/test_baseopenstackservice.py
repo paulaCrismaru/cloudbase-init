@@ -12,8 +12,6 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-
-import functools
 import posixpath
 import unittest
 
@@ -51,11 +49,6 @@ class TestBaseOpenStackService(unittest.TestCase):
         self._fake_content = self._fake_network_config["debian_config"]
         self._fake_public_keys = fake_metadata["public_keys"]
         self._fake_keys = fake_metadata["keys"]
-        self._partial_test_get_network_details = functools.partial(
-            self._test_get_network_details,
-            network_config=self._fake_network_config,
-            content=self._fake_content
-        )
 
     @mock.patch(MODPATH +
                 ".BaseOpenStackService._get_cache_data")
@@ -80,6 +73,16 @@ class TestBaseOpenStackService(unittest.TestCase):
         response = self._service._get_meta_data(
             version='fake version')
         path = posixpath.join('openstack', 'fake version', 'meta_data.json')
+        mock_get_cache_data.assert_called_with(path, decode=True)
+        self.assertEqual({"fake": "data"}, response)
+
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._get_cache_data")
+    def test_get_network_data(self, mock_get_cache_data):
+        mock_get_cache_data.return_value = '{"fake": "data"}'
+        response = self._service._get_network_data(
+            version='fake version')
+        path = posixpath.join('openstack', 'fake version', 'network_data.json')
         mock_get_cache_data.assert_called_with(path, decode=True)
         self.assertEqual({"fake": "data"}, response)
 
@@ -188,79 +191,237 @@ class TestBaseOpenStackService(unittest.TestCase):
             meta_data={}, ret_value=base.NotExistingMetadataException)
 
     @mock.patch(MODPATH +
+                ".BaseOpenStackService._parse_network_data")
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._get_network_data")
+    def test_get_network_details(self, mock_get_nework_data,
+                                 mock_parse_network):
+        result = self._service.get_network_details()
+        mock_parse_network.assert_called_once_with(mock_get_nework_data())
+        self.assertEqual(result, mock_parse_network())
+
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._parse_legacy_network_data")
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._get_network_data")
+    @mock.patch(MODPATH +
                 ".BaseOpenStackService.get_content")
     @mock.patch(MODPATH +
                 ".BaseOpenStackService._get_meta_data")
-    def _test_get_network_details(self,
-                                  mock_get_meta_data,
-                                  mock_get_content,
-                                  network_config=None,
-                                  content=None,
-                                  search_fail=False,
-                                  no_path=False):
+    def _test_get_network_details_legacy(self,
+                                         mock_get_meta_data,
+                                         mock_get_content,
+                                         mock_get_nework_data,
+                                         mock_parse_legacy,
+                                         network_config=None,
+                                         content=None,
+                                         no_path=None):
         # mock obtained data
+        mock_get_nework_data.return_value = None
         mock_get_meta_data().get.return_value = network_config
         mock_get_content.return_value = content
-        # actual tests
-        if search_fail:
-            ret = self._service.get_network_details()
-            self.assertFalse(ret)
-            return
         ret = self._service.get_network_details()
+
+        mock_get_nework_data.assert_called_once_with()
         mock_get_meta_data().get.assert_called_once_with("network_config")
         if network_config and not no_path:
             mock_get_content.assert_called_once_with("network")
-        if not network_config:
+        if no_path or not network_config:
             self.assertIsNone(ret)
             return
-        if no_path:
-            self.assertIsNone(ret)
-            return
-        # check returned NICs details
-        nic0 = base.NetworkDetails(
-            fake_json_response.NAME0,
-            fake_json_response.MAC0.upper(),
-            fake_json_response.ADDRESS0,
-            fake_json_response.ADDRESS60,
-            fake_json_response.NETMASK0,
-            fake_json_response.NETMASK60,
-            fake_json_response.BROADCAST0,
-            fake_json_response.GATEWAY0,
-            fake_json_response.GATEWAY60,
-            fake_json_response.DNSNS0.split()
-        )
-        nic1 = base.NetworkDetails(
-            fake_json_response.NAME1,
-            None,
-            fake_json_response.ADDRESS1,
-            fake_json_response.ADDRESS61,
-            fake_json_response.NETMASK1,
-            fake_json_response.NETMASK61,
-            fake_json_response.BROADCAST1,
-            fake_json_response.GATEWAY1,
-            fake_json_response.GATEWAY61,
-            None
-        )
-        self.assertEqual([nic0, nic1], ret)
+
+        self.assertEqual(mock_parse_legacy(), ret)
 
     def test_get_network_details_no_config(self):
-        self._partial_test_get_network_details(
-            network_config=None
+        self._test_get_network_details_legacy(
+            network_config=None,
+            content=self._fake_content
         )
 
     def test_get_network_details_no_path(self):
         self._fake_network_config.pop("content_path", None)
-        self._partial_test_get_network_details(
+        self._test_get_network_details_legacy(
             network_config=self._fake_network_config,
-            no_path=True
+            no_path=True,
+            content=self._fake_content
         )
 
-    def test_get_network_details_search_fail(self):
-        self._fake_content = "invalid format"
-        self._partial_test_get_network_details(
-            content=self._fake_content,
-            search_fail=True
+    def test_get_network_details_legacy(self):
+        self._test_get_network_details_legacy(
+            network_config=self._fake_network_config,
+            content=self._fake_content
         )
 
-    def test_get_network_details(self):
-        self._partial_test_get_network_details()
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._parse_l4_network_data")
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._parse_l3_network_data")
+    @mock.patch(MODPATH +
+                ".BaseOpenStackService._parse_l2_network_data")
+    def test_parse_network_data(self, mock_parse_l2, mock_parse_l3,
+                                mock_parse_l4):
+        network_data = "fake network data"
+        result = self._service._parse_network_data(network_data)
+        mock_parse_l2.assert_called_once_with(network_data)
+        mock_parse_l3.assert_called_once_with(network_data, mock_parse_l2())
+        mock_parse_l4.assert_called_once_with(network_data)
+        advanced_network_details = base.AdvancedNetworkDetails(
+            mock_parse_l2(), mock_parse_l3(), mock_parse_l4())
+        self.assertEqual(result, advanced_network_details)
+
+    def test_parse_l2_network_data(self):
+        network_data = {
+            'links': [
+                {
+                    'id': fake_json_response.NAME0,
+                    'type': 'bond',
+                    'bond_links': 'fake link 0',
+                    'bond_mode': 'fake mode 0',
+                    'mtu': 'fake mtu 0',
+                    'ethernet_mac_address': fake_json_response.MAC0.upper()
+                },
+                {
+                    'id': fake_json_response.NAME1,
+                    'type': 'ovs',
+                },
+                {
+                    'type': 'vlan',
+                }
+            ]
+        }
+
+        # layer 2 config
+        l2_config_0 = base.L2NetworkDetails.copy()
+        l2_config_0['name'] = fake_json_response.NAME0
+        l2_config_0['mac_address'] = fake_json_response.MAC0.upper()
+        l2_config_0['type'] = 'bond'
+        l2_config_0['extra_info']['bond_info']['bond_members'] = 'fake link 0'
+        l2_config_0['extra_info']['bond_info']['bond_mode'] = 'fake mode 0'
+        l2_config_0['meta_type'] = 'bond'
+        l2_config_0['mtu'] = 'fake mtu 0'
+
+        l2_config_1 = base.L2NetworkDetails.copy()
+        l2_config_1['name'] = fake_json_response.NAME1
+        l2_config_1['type'] = 'phy'
+        l2_config_1['meta_type'] = 'ovs'
+
+        l2_config_2 = base.L2NetworkDetails.copy()
+        l2_config_2['type'] = 'vlan'
+        l2_config_2['meta_type'] = 'vlan'
+
+        result = self._service._parse_l2_network_data(network_data)
+        self.assertDictEqual(result[0], l2_config_0)
+        self.assertDictEqual(result[1], l2_config_1)
+        self.assertDictEqual(result[2], l2_config_2)
+
+    def test_parse_l3_network_data(self):
+        l2_config = [
+            {
+                'name': 'fake link name',
+                'mac_address': fake_json_response.MAC0},
+            {}
+        ]
+        network_data = {
+            'networks': [
+                {
+                    'id': fake_json_response.NAME0,
+                    'network_id': 'fake network id',
+                    'type': 'ipv4',
+                    'link': 'fake link name',
+                    'ip_address': fake_json_response.ADDRESS0,
+                    'netmask': fake_json_response.NETMASK0,
+                    'routes': [{
+                        'netmask': '0.0.0.0',
+                        'network': '0.0.0.0',
+                        'gateway': fake_json_response.GATEWAY0
+                    }]
+                },
+                {
+                    'ip_address': '/'.join([fake_json_response.ADDRESS60,
+                                            fake_json_response.NETMASK60])
+                }
+            ]
+        }
+
+        # layer 3 config
+        l3_config_0 = base.L3NetworkDetails.copy()
+        l3_config_0['id'] = 'fake network id'
+        l3_config_0['name'] = fake_json_response.NAME0
+        l3_config_0['type'] = 'ipv4'
+        l3_config_0['meta_type'] = 'ipv4'
+        l3_config_0['link_name'] = 'fake link name'
+        l3_config_0['mac_address'] = fake_json_response.MAC0
+        l3_config_0['ip_address'] = fake_json_response.ADDRESS0
+        l3_config_0['netmask'] = fake_json_response.NETMASK0
+        l3_config_0['routes'] = network_data['networks'][0]['routes']
+        l3_config_0['gateway'] = fake_json_response.GATEWAY0
+
+        l3_config_1 = base.L3NetworkDetails.copy()
+        l3_config_1['ip_address'] = fake_json_response.ADDRESS60
+        l3_config_1['prefix'] = fake_json_response.NETMASK60
+
+        result = self._service._parse_l3_network_data(network_data, l2_config)
+
+        self.assertDictEqual(result[0], l3_config_0)
+        self.assertDictEqual(result[1], l3_config_1)
+
+    def test_parse_l4_network_data(self):
+        network_data = {
+            "services": [
+                {
+                    "type": "dns",
+                    "address": fake_json_response.DNSNS0.split(' ')[0]
+                }
+            ]
+        }
+
+        result = self._service._parse_l4_network_data(network_data)
+        l4_config = base.L4NetworkDetails.copy()
+        l4_config['dns_config'] = [fake_json_response.DNSNS0.split(' ')[0]]
+        self.assertDictEqual(result, l4_config)
+
+    def test_parse_layers_network_no_data(self):
+        self.assertIsNone(self._service._parse_l2_network_data(None))
+        self.assertIsNone(self._service._parse_l3_network_data(None, None))
+        self.assertIsNone(self._service._parse_l4_network_data(None))
+        self.assertIsNone(self._service._parse_network_data(None))
+        self.assertIsNone(self._service._parse_legacy_network_data(None))
+
+    def test_parse_legacy_network_data(self):
+        mock_iface = mock.Mock()
+        mock_iface.mac = fake_json_response.MAC0.upper()
+        mock_iface.name = fake_json_response.NAME0
+        mock_iface.address = fake_json_response.ADDRESS0
+        mock_iface.netmask = fake_json_response.NETMASK0
+        mock_iface.gateway = fake_json_response.GATEWAY0
+        mock_iface.dnsnameservers = fake_json_response.DNSNS0
+        mock_iface.address6 = fake_json_response.ADDRESS60
+        mock_iface.netmask6 = fake_json_response.NETMASK60
+        mock_iface.gateway6 = fake_json_response.GATEWAY60
+
+        parsed_link = base.L2NetworkDetails.copy()
+        parsed_link['type'] = 'phy'
+        parsed_link['id'] = mock_iface.name
+        parsed_link['name'] = mock_iface.name
+        parsed_link['mac_address'] = mock_iface.mac
+
+        parsed_network_ipv4 = base.L3NetworkDetails.copy()
+        parsed_network_ipv4['type'] = 'ipv4'
+        parsed_network_ipv4['mac_address'] = mock_iface.mac
+        parsed_network_ipv4['ip_address'] = mock_iface.address
+        parsed_network_ipv4['netmask'] = mock_iface.netmask
+        parsed_network_ipv4['gateway'] = mock_iface.gateway
+        parsed_network_ipv4['dns_nameservers'] = mock_iface.dnsnameservers
+
+        parsed_network_ipv6 = base.L3NetworkDetails.copy()
+        parsed_network_ipv6['type'] = 'ipv6'
+        parsed_network_ipv6['mac_address'] = mock_iface.mac
+        parsed_network_ipv6['ip_address'] = mock_iface.address6
+        parsed_network_ipv6['prefix'] = mock_iface.netmask6
+        parsed_network_ipv6['gateway'] = mock_iface.gateway6
+
+        advanced_network_details = base.AdvancedNetworkDetails(
+            [parsed_link], [parsed_network_ipv4, parsed_network_ipv6], None)
+
+        result = self._service._parse_legacy_network_data([mock_iface])
+        self.assertEqual(result, advanced_network_details)

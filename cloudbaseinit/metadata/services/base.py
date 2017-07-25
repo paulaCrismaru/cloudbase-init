@@ -49,6 +49,50 @@ NetworkDetails = collections.namedtuple(
 )
 
 
+AdvancedNetworkDetails = collections.namedtuple(
+    "AdvancedNetworkDetails",
+    [
+        "network_l2_config",
+        "network_l3_config",
+        "network_l4_config"
+    ]
+)
+
+L2NetworkDetails = {
+    'name': None,
+    'type': None,
+    'meta_type': None,
+    'mac_address': None,
+    'mtu': None,
+    'extra_info': {
+        'bond_info': {
+            'bond_members': None,
+            'bond_mode': None
+        },
+        'vlan_info': {
+            'vlan_id': None
+        }
+    }
+}
+
+L3NetworkDetails = {
+    'id': None,
+    'name': None,
+    'link_name': None,
+    'mac_address': None,
+    'ip_address': None,
+    'prefix': None,
+    'gateway': None,
+    'type': 'ipv4_dhcp',
+    'netmask': None,
+    'meta_type': None
+}
+
+L4NetworkDetails = {
+    'dns_config': []
+}
+
+
 class NotExistingMetadataException(Exception):
     pass
 
@@ -129,6 +173,13 @@ class BaseMetadataService(object):
         """Get a list of space-stripped strings as public keys."""
         pass
 
+    def _parse_legacy_network_data(self, legacy_network_data):
+        """Parses the NetworkDetails to AdvancedNetworkDetails
+
+        The parsing is needed for backwards compatibility.
+        """
+        pass
+
     def get_network_details(self):
         """Return a list of `NetworkDetails` objects.
 
@@ -155,12 +206,6 @@ class BaseMetadataService(object):
         pass
 
     def get_winrm_listeners_configuration(self):
-        pass
-
-    def get_server_certs(self):
-        pass
-
-    def get_vm_agent_package_provisioning_data(self):
         pass
 
     def get_client_auth_certs(self):
