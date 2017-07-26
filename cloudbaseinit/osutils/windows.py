@@ -15,6 +15,8 @@
 import contextlib
 import ctypes
 from ctypes import wintypes
+import mi
+import netaddr
 import os
 import re
 import struct
@@ -26,7 +28,6 @@ import pywintypes
 import six
 from six.moves import winreg
 from tzlocal import windows_tz
-import win32api
 from win32com import client
 import win32net
 import win32netcon
@@ -751,17 +752,54 @@ class WindowsUtils(base.BaseOSUtils):
                     'value "%(mtu)s" failed' % {'mac_address': mac_address,
                                                 'mtu': mtu})
 
-    def set_static_network_config(self, mac_address, address, netmask,
-                                  broadcast, gateway, dnsnameservers):
+    def set_network_adapter_name(self, mac_address, name):
+        network_adapter = self._get_network_adapter(mac_address)
+        network_adapter.NetConnectionID = name
+        network_adapter.put()
+
+    def set_dns_nameservers(self, dnsnameservers):
+        if not dnsnameservers:
+            return
+        conn = wmi.WMI(moniker='//./root/cimv2')
+        query = conn.query("SELECT * FROM Win32_NetworkAdapterConfiguration "
+	                    "WHERE MACADDRESS IS NOT NULL AND IPenabled = true")
+        if not len(query):
+            raise exception.CloudbaseInitException(
+                "Statically defined network adapters not found")
+        conn = wmi.WMI(moniker='//./root/standardcimv2')
+        LOG.debug("Setting static DNS namerservers address")
+        for adapter_config in query:
+            dnsEntries = conn.MSFT_DNSClientServerAddress(
+                InterfaceIndex=adapter_config.InterfaceIndex)
+            for dnsEntry in dnsEntries:
+                custom_options = [
+                    {'name': "ServerAddresses",
+                     'value_type': mi.MI_ARRAY | mi.MI_STRING,
+                     'value': dnsnameservers
+                    }]
+                operation_options = {'custom_options': custom_options}
+                dnsEntry.put(operation_options=operation_options)
+
+    def _get_network_adapter(self, mac_address, adapter_name=None):
         conn = wmi.WMI(moniker='//./root/cimv2')
 
-        query = conn.query("SELECT * FROM Win32_NetworkAdapter WHERE "
-                           "MACAddress = '{}'".format(mac_address))
+        query = "SELECT * FROM Win32_NetworkAdapter WHERE MACAddress = '{}'".format(mac_address)
+        if adapter_name:
+            query = (query + " AND NeTConnectionId = '{}'").format(adapter_name)
+        adapter = conn.query(query)
         if not len(query):
             raise exception.CloudbaseInitException(
                 "Network adapter not found")
+        if len(adapter) > 1:
+            raise exception.CloudbaseInitException(
+                "Multiple adapters found with the same MAC")
+        return adapter[0]
 
-        adapter_config = query[0].associators(
+    def set_static_network_config(self, mac_address, address, netmask,
+                                  broadcast, gateway, dnsnameservers,
+                                  adapter_name=None):
+        adapter = self._get_network_adapter(mac_address, adapter_name)
+        adapter_config = adapter.associators(
             wmi_result_class='Win32_NetworkAdapterConfiguration')[0]
 
         LOG.debug("Setting static IP address")
@@ -793,19 +831,11 @@ class WindowsUtils(base.BaseOSUtils):
         return reboot_required
 
     def set_static_network_config_v6(self, mac_address, address6,
-                                     netmask6, gateway6):
+                                     netmask6, gateway6, adapter_name=None):
         """Set IPv6 info for a network card."""
-
-        # Get local properties by MAC identification.
-        adapters = network.get_adapter_addresses()
-        for adapter in adapters:
-            if mac_address == adapter["mac_address"]:
-                ifname = adapter["friendly_name"]
-                ifindex = adapter["interface_index"]
-                break
-        else:
-            raise exception.CloudbaseInitException(
-                "Adapter with MAC {!r} not available".format(mac_address))
+        adapter = self._get_network_adapter(mac_address, adapter_name)
+        ifname = adapter.NetConnectionID
+        ifindex = adapter.InterfaceIndex
 
         # TODO(cpoieana): Extend support for other platforms.
         #                 Currently windows8 @ ws2012 or above.
@@ -1227,9 +1257,6 @@ class WindowsUtils(base.BaseOSUtils):
                 :volume_path_names_len.value - 1].split('\0') if n]
 
     def generate_random_password(self, length):
-        if length < 3:
-            raise exception.CloudbaseInitException(
-                "Password can not have less than 3 characters!")
         while True:
             pwd = super(WindowsUtils, self).generate_random_password(length)
             # Make sure that the Windows complexity requirements are met:
@@ -1581,25 +1608,132 @@ class WindowsUtils(base.BaseOSUtils):
                 'Failed to take path ownership.\nOutput: %(out)s\nError:'
                 ' %(err)s' % {'out': out, 'err': err})
 
-    def check_dotnet_is_installed(self, version):
-        # See: https://msdn.microsoft.com/en-us/library/hh925568(v=vs.110).aspx
-        if str(version) != "4":
+    def configure_l2_networking(self, network_l2_config=None):
+        if not network_l2_config:
             raise exception.CloudbaseInitException(
-                "Only checking for version 4 is supported at the moment")
-        try:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, 'SOFTWARE\\'
-                                'Microsoft\\NET Framework Setup\\NDP\\'
-                                'v%s\\Full' % version) as key:
-                return winreg.QueryValueEx(key, 'Install')[0] != 0
-        except WindowsError as ex:
-            if ex.winerror == 2:
-                return False
-            else:
-                raise
+                'The L2 configuration info does not exist')
+        phy_links = [x for x in network_l2_config if x.get('type') == 'phy']
+        bond_links = [x for x in network_l2_config if x.get('type') == 'bond']
+        vlan_links = [x for x in network_l2_config if x.get('type') == 'vlan']
+        for phy_link in phy_links:
+            try:
+                self._config_phy_link(phy_link)
+            except Exception as exc:
+                LOG.exception(exc)
+        for vlan_link in vlan_links:
+            try:
+                self._config_vlan_link(vlan_link)
+            except Exception as exc:
+                LOG.exception(exc)
+        for bond_link in bond_links:
+            try:
+                self._config_bond_link(bond_link)
+            except Exception as exc:
+                LOG.exception(exc)
 
-    def get_file_version(self, path):
-        info = win32api.GetFileVersionInfo(path, '\\')
-        ms = info['FileVersionMS']
-        ls = info['FileVersionLS']
-        return (win32api.HIWORD(ms), win32api.LOWORD(ms),
-                win32api.HIWORD(ls), win32api.LOWORD(ls))
+    def configure_l3_networking(self, network_l3_config=None):
+        if not network_l3_config:
+            raise exception.CloudbaseInitException(
+                'The L3 configuration info does not exist')
+        for network_info in network_l3_config:
+            try:
+                self._config_network(network_info)
+            except Exception as exc:
+                LOG.exception(exc)
+
+    def configure_l4_networking(self, network_l4_config=None):
+        if not network_l4_config:
+            raise exception.CloudbaseInitException(
+                'The L4 configuration info does not exist')
+        if network_l4_config.get('dns_config'):
+            try:
+                self.set_dns_nameservers(network_l4_config.get('dns_config'))
+            except Exception as exc:
+                LOG.exception(exc)
+
+    def _config_phy_link(self, phy_link):
+        if phy_link and phy_link.get('mac_address'):
+            if phy_link.get('mtu'):
+                self.set_network_adapter_mtu(phy_link.get('mac_address'),
+                                             phy_link.get('mtu'))
+            if phy_link.get('name'):
+                self.set_network_adapter_name(phy_link.get('mac_address'),
+                                              phy_link.get('name'))
+
+    def _config_vlan_link(self, vlan_link):
+        raise NotImplementedError(
+            "Failed to configure VLAN link."
+            "Native VLANs are not supported on Windows.")
+
+    def _config_bond_link(self, bond_link):
+        bond_info = bond_link.get('extra_info').get('bond_info')
+        self.new_lbfo_team(mac_address = bond_link.get('mac_address'),
+                           team_members=bond_info.get('bond_members'),
+                           team_name=bond_link.get('name'),
+                           teaming_mode=bond_info.get('bond_mode'))
+        LOG.debug('Bond {} configured'.format(bond_link.get('name')))
+
+    def new_lbfo_team(self, mac_address, team_members, team_name, teaming_mode):
+        lbfo_teaming_mode = network.get_lbfo_teaming_mode(teaming_mode)
+        conn = wmi.WMI(moniker='root/standardcimv2')
+        netLbfoTeam = conn.MSFT_NetLbfoTeam.new()
+        netLbfoTeam.Name = team_name
+        netLbfoTeam.TeamingMode  = lbfo_teaming_mode
+        netLbfoTeam.LoadBalancingAlgorithm  = network.LBFO_BOND_ALGORITHM_L2_L3
+        primary_network_adapter_name = self._get_network_adapter(mac_address).NetConnectionID
+        team_members.remove(primary_network_adapter_name)
+        custom_options = [
+            {'name': 'TeamMembers',
+             'value_type': mi.MI_ARRAY | mi.MI_STRING,
+             'value': [primary_network_adapter_name]
+            },
+            {'name': 'TeamNicName',
+             'value_type': mi.MI_STRING,
+             'value': team_name
+            }
+        ]
+        operation_options = {'custom_options': custom_options}
+        LOG.debug('Trying to configure bond {} with {} mode'.format(team_name,
+                                                                    lbfo_teaming_mode))
+        netLbfoTeam.put(operation_options=operation_options)
+
+        for team_member in team_members:
+            netLbfoTeamMember = conn.MSFT_NetLbfoTeamMember.new()
+            netLbfoTeamMember.Team = team_name
+            custom_options = [
+                {'name': 'Name',
+                 'value_type': mi.MI_STRING,
+                 'value': team_member
+                }
+            ]
+            operation_options = {'custom_options': custom_options}
+            LOG.debug('Trying to add bond member {} with {} mode'.format(team_member,
+                                                                        False))
+            netLbfoTeamMember.put(operation_options=operation_options)
+            time.sleep(10)
+
+    def _config_network(self, network_info):
+        if network_info.get('type') == 'ipv4':
+            self.set_static_network_config(network_info.get('mac_address'),
+                                           network_info.get('ip_address'),
+                                           network_info.get('netmask'), None,
+                                           network_info.get('gateway'), None,
+                                           network_info.get('link_name'))
+        elif network_info.get('type') == 'ipv6':
+            if not network_info.get('prefix') and network_info.get('netmask'):
+                network_info['prefix'] = self._ipv6_netmask_to_prefix(
+                    network_info.get('netmask'))
+            self.set_static_network_config_v6(network_info.get('mac_address'),
+                                              network_info.get('ip_address'),
+                                              network_info.get('prefix'),
+                                              network_info.get('gateway'),
+                                              network_info.get('link_name'))
+        else:
+            LOG.debug("The network is automatically managed by DHCP."
+                      "No need to set a configuration.")
+
+    def _ipv6_netmask_to_prefix(self, netmask):
+        if netaddr.IPAddress(netmask).is_netmask():
+            return netaddr.IPAddress(netmask).netmask_bits()
+        else:
+            LOG.debug("IPv6 netmask is not valid")
