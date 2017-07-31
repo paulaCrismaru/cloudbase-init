@@ -300,14 +300,19 @@ class TestNetworkConfigPlugin(unittest.TestCase):
     @mock.patch("cloudbaseinit.osutils.factory.get_os_utils")
     def _test_execute_advanced_networking(self, mock_get_os_utils,
                                           network_details):
-        mock_service = mock.Mock(spec=service_base.AdvancedNetworkDetails)
+        mock_service = mock.Mock()
+        mock_shared_data = mock.Mock()
         osutils = mock_get_os_utils()
         osutils.configure_l2_networking.return_value = True
         osutils.configure_l3_networking.return_value = True
         osutils.configure_l4_networking.return_value = True
         mock_service.get_network_details.return_value = network_details
 
-        result = self._network_plugin.execute(mock_service, None)
+        network_execute = functools.partial(
+            self._network_plugin.execute,
+            mock_service, mock_shared_data
+        )
+        result = network_execute()
 
         reboot_required = True
         if not network_details:
@@ -328,7 +333,7 @@ class TestNetworkConfigPlugin(unittest.TestCase):
     def test_execute_no_network_data(self):
         self._test_execute_advanced_networking(network_details=None)
 
-    def test_execute(self):
+    def test_execute_advanced_networking(self):
         network_details = mock.Mock(spec=service_base.AdvancedNetworkDetails)
         network_details.network_l2_config = "fake l2 data"
         network_details.network_l3_config = "fake l3 data"

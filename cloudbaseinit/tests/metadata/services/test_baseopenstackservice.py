@@ -194,10 +194,10 @@ class TestBaseOpenStackService(unittest.TestCase):
                 ".BaseOpenStackService._parse_network_data")
     @mock.patch(MODPATH +
                 ".BaseOpenStackService._get_network_data")
-    def test_get_network_details(self, mock_get_nework_data,
+    def test_get_network_details(self, mock_get_network_data,
                                  mock_parse_network):
         result = self._service.get_network_details()
-        mock_parse_network.assert_called_once_with(mock_get_nework_data())
+        mock_parse_network.assert_called_once_with(mock_get_network_data())
         self.assertEqual(result, mock_parse_network())
 
     @mock.patch(MODPATH +
@@ -211,18 +211,18 @@ class TestBaseOpenStackService(unittest.TestCase):
     def _test_get_network_details_legacy(self,
                                          mock_get_meta_data,
                                          mock_get_content,
-                                         mock_get_nework_data,
+                                         mock_get_network_data,
                                          mock_parse_legacy,
                                          network_config=None,
                                          content=None,
                                          no_path=None):
         # mock obtained data
-        mock_get_nework_data.return_value = None
+        mock_get_network_data.return_value = None
         mock_get_meta_data().get.return_value = network_config
         mock_get_content.return_value = content
         ret = self._service.get_network_details()
 
-        mock_get_nework_data.assert_called_once_with()
+        mock_get_network_data.assert_called_once_with()
         mock_get_meta_data().get.assert_called_once_with("network_config")
         if network_config and not no_path:
             mock_get_content.assert_called_once_with("network")

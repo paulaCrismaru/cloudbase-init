@@ -124,11 +124,12 @@ class NetworkConfigPlugin(plugin_base.BasePlugin):
     def execute(self, service, shared_data):
         osutils = osutils_factory.get_os_utils()
         network_details = service.get_network_details()
+
         reboot_required = False
         if not network_details:
             return plugin_base.PLUGIN_EXECUTION_DONE, False
 
-        if type(network_details) is service_base.AdvancedNetworkDetails:
+        if type(network_details) is not list:
             if network_details.network_l2_config:
                 reboot_required = osutils.configure_l2_networking(
                     network_details.network_l2_config)

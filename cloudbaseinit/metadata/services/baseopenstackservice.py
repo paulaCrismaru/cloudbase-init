@@ -40,7 +40,7 @@ class BaseOpenStackService(base.BaseMetadataService):
             posixpath.join('openstack', 'latest', 'user_data'))
         return self._get_cache_data(path)
 
-    def _get_nework_data(self, version='latest'):
+    def _get_network_data(self, version='latest'):
         path = posixpath.normpath(
             posixpath.join('openstack', version, 'network_data.json'))
         data = self._get_cache_data(path, decode=True)
@@ -75,7 +75,7 @@ class BaseOpenStackService(base.BaseMetadataService):
         return list(set((key.strip() for key in public_keys)))
 
     def get_network_details(self):
-        network_data = self._get_nework_data()
+        network_data = self._get_network_data()
         if network_data:
             return self._parse_network_data(network_data)
         else:
@@ -99,7 +99,6 @@ class BaseOpenStackService(base.BaseMetadataService):
         network_l3_config = self._parse_l3_network_data(network_data,
                                                         network_l2_config)
         network_l4_config = self._parse_l4_network_data(network_data)
-        LOG.debug("*********network_l4_config")
         return base.AdvancedNetworkDetails(network_l2_config,
                                            network_l3_config,
                                            network_l4_config)
