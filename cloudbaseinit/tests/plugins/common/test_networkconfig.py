@@ -334,8 +334,9 @@ class TestNetworkConfigPlugin(unittest.TestCase):
         self._test_execute_advanced_networking(network_details=None)
 
     def test_execute_advanced_networking(self):
-        network_details = mock.Mock(spec=service_base.AdvancedNetworkDetails)
-        network_details.network_l2_config = "fake l2 data"
-        network_details.network_l3_config = "fake l3 data"
-        network_details.network_l4_config = "fake l4 data"
+        network_details = service_base.AdvancedNetworkDetails(
+            network_l2_config="fake l2 data",
+            network_l3_config="fake l3 data",
+            network_l4_config="fake l4 data"
+        )
         self._test_execute_advanced_networking(network_details=network_details)
