@@ -15,6 +15,7 @@
 import contextlib
 import ctypes
 from ctypes import wintypes
+import mi
 import netaddr
 import os
 import re
@@ -769,6 +770,29 @@ class WindowsUtils(base.BaseOSUtils):
                     'Setting MTU for interface "%(mac_address)s" with '
                     'value "%(mtu)s" failed' % {'mac_address': mac_address,
                                                 'mtu': mtu})
+
+    def set_dns_nameservers(self, dnsnameservers):
+        if not dnsnameservers:
+            return
+        conn = wmi.WMI(moniker='//./root/cimv2')
+        query = conn.query("SELECT * FROM Win32_NetworkAdapterConfiguration "
+                           "WHERE MACADDRESS IS NOT NULL AND IPenabled = true")
+        if not len(query):
+            raise exception.CloudbaseInitException(
+                "Statically defined network adapters not found")
+        conn = wmi.WMI(moniker='//./root/standardcimv2')
+        LOG.debug("Setting static DNS namerservers address")
+        for adapter_config in query:
+            dnsEntries = conn.MSFT_DNSClientServerAddress(
+                InterfaceIndex=adapter_config.InterfaceIndex)
+            for dnsEntry in dnsEntries:
+                custom_options = [
+                    {'name': "ServerAddresses",
+                     'value_type': mi.MI_ARRAY | mi.MI_STRING,
+                     'value': dnsnameservers
+                    }]
+                operation_options = {'custom_options': custom_options}
+                dnsEntry.put(operation_options=operation_options)
 
     def set_static_network_config(self, mac_address, address, netmask,
                                   broadcast, gateway, dnsnameservers):
@@ -1697,5 +1721,15 @@ class WindowsUtils(base.BaseOSUtils):
         for network_info in network_l3_config:
             try:
                 self._config_network(network_info)
+            except Exception as exc:
+                LOG.exception(exc)
+
+    def configure_l4_networking(self, network_l4_config=None):
+        if not network_l4_config:
+            raise exception.CloudbaseInitException(
+                'The L4 configuration info does not exist')
+        if network_l4_config.get('dns_config'):
+            try:
+                self.set_dns_nameservers(network_l4_config.get('dns_config'))
             except Exception as exc:
                 LOG.exception(exc)
