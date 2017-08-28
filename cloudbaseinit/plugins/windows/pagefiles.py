@@ -26,6 +26,7 @@ LOG = oslo_logging.getLogger(__name__)
 
 
 class PageFilesPlugin(base.BasePlugin):
+    require_metadata = False
 
     def _get_page_file_volumes_by_mount_point(self, osutils):
         page_file_volume_paths = []

@@ -25,6 +25,7 @@ LOG = oslo_logging.getLogger(__name__)
 
 
 class SANPolicyPlugin(base.BasePlugin):
+    require_metadata = False
 
     def execute(self, service, shared_data):
         san_policy_map = {

@@ -23,6 +23,7 @@ CONF = cloudbaseinit_conf.CONF
 
 
 class LocalScriptsPlugin(base.BasePlugin):
+    require_metadata = False
 
     def _get_files_in_dir(self, path):
         return sorted([os.path.join(path, f) for f in os.listdir(path)

@@ -24,6 +24,7 @@ LOG = oslo_logging.getLogger(__name__)
 
 
 class BootStatusPolicyPlugin(base.BasePlugin):
+    require_metadata = False
 
     def execute(self, service, shared_data):
         if CONF.bcd_boot_status_policy:

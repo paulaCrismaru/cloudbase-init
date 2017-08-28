@@ -22,6 +22,7 @@ PLUGIN_STAGE_MAIN = "MAIN"
 
 class BasePlugin(object):
     execution_stage = PLUGIN_STAGE_MAIN
+    require_metadata = True
 
     def get_name(self):
         return self.__class__.__name__

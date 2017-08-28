@@ -23,6 +23,8 @@ LOG = oslo_logging.getLogger(__name__)
 
 
 class DisplayIdleTimeoutConfigPlugin(base.BasePlugin):
+    require_metadata = False
+
     def execute(self, service, shared_data):
         LOG.info("Setting display idle timeout: %s", CONF.display_idle_timeout)
         powercfg.set_display_idle_timeout(CONF.display_idle_timeout)

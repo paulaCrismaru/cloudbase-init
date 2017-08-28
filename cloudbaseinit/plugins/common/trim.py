@@ -24,6 +24,7 @@ LOG = oslo_logging.getLogger(__name__)
 
 
 class TrimConfigPlugin(plugin_base.BasePlugin):
+    require_metadata = False
 
     def execute(self, service, shared_data):
         osutils = osutils_factory.get_os_utils()

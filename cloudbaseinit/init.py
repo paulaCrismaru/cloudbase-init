@@ -107,6 +107,9 @@ class InitManager(object):
         reboot_required = False
         stage_success = True
         plugins = plugins_factory.load_plugins(stage)
+        if service is None:
+            plugins = [plugin for plugin in plugins
+                       if not plugin.require_metadata]
 
         LOG.info('Executing plugins for stage %r:', stage)
 
@@ -189,8 +192,12 @@ class InitManager(object):
             try:
                 service = metadata_factory.get_metadata_service()
             except exception.MetadaNotFoundException:
-                LOG.error("No metadata service found")
-        if service:
+                LOG.info("No metadata service found")
+        if service is None:
+            stage_success, reboot_required = self._handle_plugins_stage(
+                osutils, service, None,
+                plugins_base.PLUGIN_STAGE_MAIN)
+        else:
             LOG.info('Metadata service loaded: \'%s\'' %
                      service.get_name())
 
