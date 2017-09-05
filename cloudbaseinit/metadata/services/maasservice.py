@@ -12,77 +12,23 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import copy
+import json
+import netaddr
+import os
 import re
 
 from oauthlib import oauth1
 from oslo_log import log as oslo_logging
 import requests
-try:
-    import simplejson as json
-except ImportError:
-    import json
 
 from cloudbaseinit import conf as cloudbaseinit_conf
-from cloudbaseinit import constant
-from cloudbaseinit.metadata.services import basenetworkservice as service_base
+from cloudbaseinit.metadata.services import base
+from cloudbaseinit.utils import encoding
 from cloudbaseinit.utils import x509constants
 
 CONF = cloudbaseinit_conf.CONF
 LOG = oslo_logging.getLogger(__name__)
-
-
-class _NetworkDetailsBuilder(service_base.NetworkDetailsBuilder):
-
-    """MAAS HTTP service network details builders."""
-
-    _CONFIG = "config"
-    _SUBNETS = "subnets"
-
-    # Network types
-    STATIC = "static"
-    MANUAL = "manual"
-
-    def __init__(self, service, network_data):
-        super(_NetworkDetailsBuilder, self).__init__(service)
-        self._link.update({
-            constant.TYPE: self._Field(name=constant.TYPE),
-            constant.ID: self._Field(name=constant.ID),
-            constant.MTU: self._Field(name=constant.MTU),
-        })
-        self._network.update({
-            constant.DNS: self._Field(name=constant.DNS),
-            constant.IP_ADDRESS: self._Field(name=constant.IP_ADDRESS),
-            constant.NETMASK: self._Field(name=constant.NETMASK),
-        })
-
-        self._links = {}
-        self._networks = {}
-        self._network_data = network_data
-
-    def _process_network(self, raw_subnets):
-        """Digest the information related to networks."""
-        success = False
-        for raw_network in raw_subnets:
-            network = self._get_fields(self._network.values(),
-                                       raw_network)
-            if network and network[constant.TYPE] == self.STATIC:
-                self._networks[network[constant.ID]] = network
-                success = True
-        return success
-
-    def _process(self):
-        """Digest the received network information."""
-        for raw_link in self._network_data.get(self._CONFIG, []):
-            link = self._get_fields(self._link.values(), raw_link)
-            if link and self._SUBNETS in raw_link:
-                if self._process_network(raw_link.get(self._SUBNETS)):
-                    self._links[link[constant.ID]] = link
-            else:
-                # Note(alexandrucoman): The current raw_link do not contain
-                #                       all the required fields.
-                LOG.warning("%r does not contain all the required fields.",
-                            raw_link)
-                continue
 
 
 class _Realm(str):
@@ -96,8 +42,7 @@ class _Realm(str):
     __nonzero__ = __bool__
 
 
-class MaaSHttpService(service_base.BaseHTTPNetworkMetadataService):
-
+class MaaSHttpService(base.BaseHTTPMetadataService):
     _METADATA_2012_03_01 = '2012-03-01'
 
     def __init__(self):
@@ -169,23 +114,110 @@ class MaaSHttpService(service_base.BaseHTTPNetworkMetadataService):
     def get_user_data(self):
         return self._get_cache_data('%s/user-data' % self._metadata_version)
 
-    def _get_network_details_builder(self):
-        """Get the required `NetworkDetailsBuilder` object.
+    def _get_nework_data(self):
+        data = self._get_file_data("network.json")
+        LOG.debug(data)
+        if data:
+            return json.loads(encoding.get_as_string(data))
 
-        The `NetworkDetailsBuilder` is used in order to create the
-        `NetworkDetails` object using the network related information
-        exposed by the current metadata provider.
-        """
-        network_data = self._get_cache_data('latest/network_data.json',
-                                            decode=True)
+    def get_network_details(self):
+        network_data = self._get_nework_data()
+        if network_data:
+            return self._parse_network_data(network_data)
+        else:
+            pass
+
+    def _parse_network_data(self, network_data):
         if not network_data:
-            LOG.debug("'network_data.json' not found.")
             return None
+        LOG.debug(network_data)
+        network_l2_config = self._parse_l2_network_data(network_data)
+        LOG.debug(network_l2_config)
+        network_l3_config = self._parse_l3_network_data(network_data,
+                                                        network_l2_config)
+        LOG.debug(network_l3_config)
+        network_l4_config = self._parse_l4_network_data(network_data)
+        LOG.debug(network_l4_config)
+        return base.AdvancedNetworkDetails(network_l2_config,
+                                           network_l3_config,
+                                           network_l4_config)
 
+    def _parse_l2_network_data(self, network_data):
+        if not (network_data and network_data.get('config')):
+            return None
+        parsed_links = []
+        for link in network_data['config']:
+            if link.get('type') in ['nameserver']:
+                continue
+            parsed_link = copy.deepcopy(base.L2NetworkDetails)
+            parsed_link['name'] = link.get('id')
+            parsed_link['mtu'] = link.get('mtu')
+            if link.get('mac_address'):
+                parsed_link['mac_address'] = link['mac_address'].upper()
+            if link.get('type'):
+                parsed_link['meta_type'] = link['type']
+                parsed_link['type'] = 'phy'
+                if link['type'] in ['ovs', 'vif']:
+                    parsed_link['type'] = 'phy'
+                elif link['type'] in ['vlan']:
+                    parsed_link['type'] = link['type']
+                elif link['type'] == 'bond':
+                    parsed_link['type'] = link['type']
+                    parsed_link['bond_info']['bond_members'] = \
+                        link.get('bond_interfaces')
+                    if link.get('params') and link['params'].get('bond-mode'):
+                        parsed_link['bond_info']['bond_mode'] = \
+                            link['params']['bond-mode']
+            parsed_links.append(parsed_link)
+        return parsed_links
+
+    def _parse_l3_network_data(self, network_data, network_l2_config):
+        if not (network_data and network_data.get('config')):
+            return None
+        parsed_networks = []
+        for network_config in network_data['config']:
+            if not network_config.get('subnets'):
+                continue
+            for subnet in network_config.get('subnets'):
+                parsed_network = copy.deepcopy(base.L3NetworkDetails)
+                parsed_network["id"] = network_config.get('name')
+                parsed_network["name"] = network_config.get('name')
+                parsed_network['gateway'] = subnet.get('gateway')
+                if network_config.get('mac_address'):
+                    parsed_network['mac_address'] = \
+                        network_config['mac_address'].upper()
+                if subnet.get('address'):
+                    parsed_network['prefix'] = subnet['address'].split('/')[1]
+                    parsed_network['netmask'] = (str(netaddr.IPNetwork(subnet
+                                                 ['address']).netmask))
+                    parsed_network['ip_address'] = (subnet['address']
+                                                    .split('/')[0])
+                    version = (netaddr.IPAddress(parsed_network['ip_address'])
+                               .version)
+                    if version == 4:
+                        parsed_network['type'] = 'ipv4'
+                    elif version == 6:
+                        parsed_network['type'] = 'ipv6'
+                parsed_network['meta_type'] = parsed_network['type']
+                if subnet.get('dns_nameservers'):
+                    parsed_network.extend(subnet['dns_nameservers'])
+                parsed_networks.append(parsed_network)
+        return parsed_networks
+
+    def _parse_l4_network_data(self, network_data):
+        if not (network_data and network_data.get('config')):
+            return None
+        l4_config = copy.deepcopy(base.L4NetworkDetails)
+        for service in network_data['config']:
+            if service.get('type') == 'nameserver':
+                l4_config['global_dns_nameservers'] = service['address']
+                break
+        return l4_config
+
+    def _get_file_data(self, path):
+        norm_path = os.path.normpath(os.path.join("C:\\", path))
         try:
-            network_data = json.loads(network_data)
-        except ValueError as exc:
-            LOG.error("Failed to load json data: %r" % exc)
-            return None
-
-        return _NetworkDetailsBuilder(self, network_data)
+            with open(norm_path, 'rb') as stream:
+                return stream.read()
+        except IOError:
+            raise base.NotExistingMetadataException()
