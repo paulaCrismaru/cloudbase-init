@@ -12,6 +12,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import json
 import unittest
 
 try:
@@ -20,7 +21,7 @@ except ImportError:
     import mock
 
 from cloudbaseinit import conf as cloudbaseinit_conf
-from cloudbaseinit import constant
+from cloudbaseinit.metadata.services import base
 from cloudbaseinit.metadata.services import maasservice
 from cloudbaseinit.tests import testutils
 from cloudbaseinit.utils import x509constants
@@ -28,38 +29,108 @@ from cloudbaseinit.utils import x509constants
 
 CONF = cloudbaseinit_conf.CONF
 
+NAME0 = "eth0"
+MAC0 = "fa:16:3e:2d:ec:cd"
+ADDRESS = "10.0.0.15"
+NETMASK0 = "255.255.255.0"
+NETMASK_PREFIX = "24"
+GATEWAY = "10.0.0.1"
+DNSNS = "208.67.220.220"
 
-class Test_NetworkDetailsBuilder(unittest.TestCase):
+NAME1 = "eth1"
+MAC1 = "fa:16:3e:2d:ec:ce"
+ADDRESS6 = "2001:db8::3"
+NETMASK6 = "ffff:ffff:ffff:ffff::"
+NETMASK_PREFIX6 = "64"
+GATEWAY6 = "2001:db8::1"
 
-    @mock.patch("cloudbaseinit.osutils.factory.get_os_utils")
-    def setUp(self, _):
-        fake_network_data = {}
-        self._builder = maasservice._NetworkDetailsBuilder(
-            service=maasservice.MaaSHttpService,
-            network_data=fake_network_data)
+BOND = "bond0"
+BOND_MODE = "802.3ad"
 
-    @mock.patch("cloudbaseinit.metadata.services.basenetworkservice."
-                "NetworkDetailsBuilder._get_fields")
-    def _test_process_network(self, mock_get_fields, static=True):
-        mock_network = {}
-        mock_raw_subnet = {mock.sentinel.key: mock.sentinel.subnet}
-        if static:
-            mock_network[constant.ID] = mock.sentinel.id
-            mock_network[constant.TYPE] = self._builder.STATIC
-            mock_get_fields.return_value = mock_network
-            res = self._builder._process_network(mock_raw_subnet)
-            self.assertTrue(res)
-        else:
-            mock_network[constant.TYPE] = self._builder.MANUAL
-            mock_get_fields.return_value = mock_network
-            res = self._builder._process_network(mock_raw_subnet)
-            self.assertFalse(res)
+BOND_VLAN = "bond0.8"
+VLAN_ID = 8
+ADDRESS2 = "10.0.0.16"
+NETMASK2 = "255.255.255.0"
+NETMASK_PREFIX2 = "24"
 
-    def test_process_network_static(self):
-        self._test_process_network()
-
-    def test_process_network_manual(self):
-        self._test_process_network(static=False)
+NETWORK_DETAILS = {
+    "config": [
+        {
+            "subnets": [
+                {
+                    "gateway": GATEWAY,
+                    "type": "static",
+                    "address": ADDRESS + "/" + NETMASK_PREFIX,
+                    "dns_nameservers": [DNSNS]
+                }
+            ],
+            "mac_address": MAC0,
+            "type": "physical",
+            "mtu": 1500,
+            "name": NAME0,
+            "id": NAME0
+        },
+        {
+            "subnets": [
+                {
+                    "gateway": GATEWAY6,
+                    "type": "static",
+                    "address": ADDRESS6 + "/" + NETMASK6,
+                    "dns_nameservers": []
+                }
+            ],
+            "mac_address": MAC1,
+            "type": "vif",
+            "mtu": 1500,
+            "name": NAME1,
+            "id": NAME1
+        },
+        {
+            "subnets": [
+                {
+                    "type": "manual"
+                }
+            ],
+            "type": "bond",
+            "id": BOND,
+            "params": {
+                "bond-mode": BOND_MODE,
+                "bond-miimon": 100,
+                "bond-lacp_rate": "slow",
+                "bond-xmit_hash_policy": "layer2+3",
+                "bond-downdelay": 0,
+                "bond-updelay": 0
+            },
+            "mac_address": MAC0,
+            "mtu": 1500,
+            "name": BOND,
+            "bond_interfaces": [NAME0, NAME1]
+        },
+        {
+            "subnets": [
+                {
+                    "dns_nameservers": [],
+                    "type": "static",
+                    "address": ADDRESS2 + "/" + NETMASK_PREFIX2
+                }
+            ],
+            "vlan_link": BOND,
+            "name": BOND_VLAN,
+            "type": "vlan",
+            "id": BOND_VLAN,
+            "vlan_id": VLAN_ID,
+            "mtu": 1500
+        },
+        {
+            "type": "nameserver",
+            "address": [DNSNS],
+            "search": [
+                "maas"
+            ]
+        }
+    ],
+    "version": 1
+}
 
 
 class MaaSHttpServiceTest(unittest.TestCase):
@@ -196,37 +267,149 @@ class MaaSHttpServiceTest(unittest.TestCase):
 
     @mock.patch("cloudbaseinit.metadata.services.maasservice.MaaSHttpService"
                 "._get_cache_data")
-    def test_get_network_details_builder_no_data(self, mock_get_cache_data):
-        mock_get_cache_data.return_value = None
-        expected_output = ["'network_data.json' not found."]
-        with testutils.LogSnatcher('cloudbaseinit.metadata.services.'
-                                   'maasservice') as snatcher:
-            response = self._maasservice._get_network_details_builder()
-        mock_get_cache_data.assert_called_once_with('latest/network_data.json',
-                                                    decode=True)
-        self.assertIsNone(response)
-        self.assertEqual(snatcher.output, expected_output)
+    def test_get_network_data(self, mock_get_cache_data):
+        mock_get_cache_data.return_value = json.dumps(NETWORK_DETAILS)
+        result = self._maasservice._get_network_data()
+        self.assertEqual(NETWORK_DETAILS, result)
 
-    @mock.patch('json.loads')
     @mock.patch("cloudbaseinit.metadata.services.maasservice.MaaSHttpService"
-                "._get_cache_data")
-    def test_get_network_details_builder_fail_json(self, mock_get_cache_data,
-                                                   mock_loads):
-        mock_loads.side_effect = ValueError
-        expected_output = ['Failed to load json data: ValueError()']
-        with testutils.LogSnatcher('cloudbaseinit.metadata.services.'
-                                   'maasservice') as snatcher:
-            response = self._maasservice._get_network_details_builder()
-        mock_get_cache_data.assert_called_once_with('latest/network_data.json',
-                                                    decode=True)
-        self.assertIsNone(response)
-        self.assertEqual(snatcher.output, expected_output)
+                "._get_network_data")
+    def _test_get_network_details(self, mock_get_network_data,
+                                  network_data, expected_network_details):
+        mock_get_network_data.return_value = network_data
 
-    @mock.patch("cloudbaseinit.osutils.factory.get_os_utils")
-    @mock.patch('json.loads')
-    @mock.patch("cloudbaseinit.metadata.services.maasservice.MaaSHttpService"
-                "._get_cache_data")
-    def test_get_network_details(self, mock_get_cache_data, mock_loads,
-                                 mock_get_os_utils):
-        response = self._maasservice._get_network_details_builder()
-        self.assertIsInstance(response, maasservice._NetworkDetailsBuilder)
+        result = self._maasservice.get_network_details()
+        self.assertEqual(expected_network_details, result)
+
+    def test_get_network_details(self):
+        expected_l2 = [
+            {
+                'name': NAME0,
+                'type': 'phy',
+                'meta_type': 'physical',
+                'mac_address': MAC0.upper(),
+                'mtu': 1500,
+                'bond_info': {
+                    'bond_members': [],
+                    'bond_mode': None
+                },
+                'vlan_info': {
+                    'vlan_id': None
+                }
+            },
+            {
+                'name': NAME1,
+                'type': 'phy',
+                'meta_type': 'vif',
+                'mac_address': MAC1.upper(),
+                'mtu': 1500,
+                'bond_info': {
+                    'bond_members': [],
+                    'bond_mode': None
+                },
+                'vlan_info': {
+                    'vlan_id': None
+                }
+            },
+            {
+                'name': BOND,
+                'type': "bond",
+                'meta_type': 'bond',
+                'mac_address': MAC0.upper(),
+                'mtu': 1500,
+                'bond_info': {
+                    'bond_members': [NAME0, NAME1],
+                    'bond_mode': BOND_MODE
+                },
+                'vlan_info': {
+                    'vlan_id': None
+                }
+            },
+            {
+                'name': BOND_VLAN,
+                'type': "vlan",
+                'meta_type': 'vlan',
+                'mac_address': None,
+                'mtu': 1500,
+                'bond_info': {
+                    'bond_members': [],
+                    'bond_mode': None
+                },
+                'vlan_info': {
+                    'vlan_id': VLAN_ID
+                }
+            }
+        ]
+        expected_l3 = [
+            {
+                'id': NAME0,
+                'name': NAME0,
+                'type': "ipv4",
+                'meta_type': 'ipv4',
+                'mac_address': MAC0.upper(),
+                'ip_address': ADDRESS,
+                'prefix': NETMASK_PREFIX,
+                'gateway': GATEWAY,
+                'netmask': NETMASK0,
+                'dns_nameservers': [DNSNS]
+            },
+            {
+                'id': NAME1,
+                'name': NAME1,
+                'type': "ipv6",
+                'meta_type': 'ipv6',
+                'mac_address': MAC1.upper(),
+                'ip_address': ADDRESS6,
+                'prefix': NETMASK6,
+                'gateway': GATEWAY6,
+                'netmask': NETMASK6,
+                'dns_nameservers': []
+            },
+            {
+                'id': BOND,
+                'name': BOND,
+                'type': None,
+                'meta_type': None,
+                'mac_address': MAC0.upper(),
+                'ip_address': None,
+                'prefix': None,
+                'gateway': None,
+                'netmask': None,
+                'dns_nameservers': []
+            },
+            {
+                'id': BOND_VLAN,
+                'name': BOND_VLAN,
+                'type': 'ipv4',
+                'meta_type': 'ipv4',
+                'mac_address': None,
+                'ip_address': ADDRESS2,
+                'prefix': NETMASK_PREFIX2,
+                'gateway': None,
+                'netmask': NETMASK2,
+                'dns_nameservers': []
+            }
+        ]
+        expected_l4 = {
+            'global_dns_nameservers': [DNSNS],
+        }
+        expected_network_details = base.AdvancedNetworkDetails(
+            expected_l2, expected_l3, expected_l4)
+        self._test_get_network_details(
+            network_data=NETWORK_DETAILS,
+            expected_network_details=expected_network_details)
+
+    def test_get_network_no_config(self):
+        expected_network_details = base.AdvancedNetworkDetails(
+            None, None, None)
+        network_details = {"fake": "data"}
+        self._test_get_network_details(
+            network_data=network_details,
+            expected_network_details=expected_network_details)
+
+    def test_get_network_no_data(self):
+        self._test_get_network_details(
+            network_data=None, expected_network_details=None)
+
+    def test_parse_no_network_data(self):
+        self.assertIsNone(self._maasservice._parse_network_data(None))

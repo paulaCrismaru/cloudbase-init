@@ -15,7 +15,6 @@
 import copy
 import json
 import netaddr
-import os
 import re
 
 from oauthlib import oauth1
@@ -24,7 +23,6 @@ import requests
 
 from cloudbaseinit import conf as cloudbaseinit_conf
 from cloudbaseinit.metadata.services import base
-from cloudbaseinit.utils import encoding
 from cloudbaseinit.utils import x509constants
 
 CONF = cloudbaseinit_conf.CONF
@@ -114,30 +112,25 @@ class MaaSHttpService(base.BaseHTTPMetadataService):
     def get_user_data(self):
         return self._get_cache_data('%s/user-data' % self._metadata_version)
 
-    def _get_nework_data(self):
-        data = self._get_file_data("network.json")
-        LOG.debug(data)
+    def _get_network_data(self):
+        data = self._get_cache_data('%s/network_data.json' %
+                                    self._metadata_version,
+                                    decode=True)
         if data:
-            return json.loads(encoding.get_as_string(data))
+            return json.loads(data)
 
     def get_network_details(self):
-        network_data = self._get_nework_data()
+        network_data = self._get_network_data()
         if network_data:
             return self._parse_network_data(network_data)
-        else:
-            pass
 
     def _parse_network_data(self, network_data):
         if not network_data:
             return None
-        LOG.debug(network_data)
         network_l2_config = self._parse_l2_network_data(network_data)
-        LOG.debug(network_l2_config)
         network_l3_config = self._parse_l3_network_data(network_data,
                                                         network_l2_config)
-        LOG.debug(network_l3_config)
         network_l4_config = self._parse_l4_network_data(network_data)
-        LOG.debug(network_l4_config)
         return base.AdvancedNetworkDetails(network_l2_config,
                                            network_l3_config,
                                            network_l4_config)
@@ -161,6 +154,7 @@ class MaaSHttpService(base.BaseHTTPMetadataService):
                     parsed_link['type'] = 'phy'
                 elif link['type'] in ['vlan']:
                     parsed_link['type'] = link['type']
+                    parsed_link['vlan_info']['vlan_id'] = link.get('vlan_id')
                 elif link['type'] == 'bond':
                     parsed_link['type'] = link['type']
                     parsed_link['bond_info']['bond_members'] = \
@@ -200,7 +194,8 @@ class MaaSHttpService(base.BaseHTTPMetadataService):
                         parsed_network['type'] = 'ipv6'
                 parsed_network['meta_type'] = parsed_network['type']
                 if subnet.get('dns_nameservers'):
-                    parsed_network.extend(subnet['dns_nameservers'])
+                    parsed_network['dns_nameservers'].extend(
+                        subnet['dns_nameservers'])
                 parsed_networks.append(parsed_network)
         return parsed_networks
 
@@ -213,11 +208,3 @@ class MaaSHttpService(base.BaseHTTPMetadataService):
                 l4_config['global_dns_nameservers'] = service['address']
                 break
         return l4_config
-
-    def _get_file_data(self, path):
-        norm_path = os.path.normpath(os.path.join("C:\\", path))
-        try:
-            with open(norm_path, 'rb') as stream:
-                return stream.read()
-        except IOError:
-            raise base.NotExistingMetadataException()
